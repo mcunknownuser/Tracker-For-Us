@@ -1,0 +1,107 @@
+# =============================================================================
+#  release.yml
+#  Triggered when a tag like `v0.1.1` is pushed. Builds the Tauri app for
+#  both Apple Silicon AND Intel, creates a GitHub Release, uploads all
+#  installer artifacts, and writes the `latest.json` manifest that the
+#  in-app updater fetches.
+#
+#  After one-time setup (Settings → Secrets), publishing a new version is:
+#
+#      git tag v0.1.2
+#      git push origin v0.1.2
+#
+#  Everything else happens automatically.
+# =============================================================================
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  build:
+    # Apple Silicon Macs in the GitHub-hosted runner pool. macos-14 = M1.
+    # We build both architectures by toolchain-targeting, on one runner.
+    runs-on: macos-14
+    permissions:
+      contents: write        # needed to create the release + upload assets
+
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - aarch64-apple-darwin   # Apple Silicon (M1/M2/M3/M4) — native
+          - x86_64-apple-darwin    # Intel Macs — cross-compiled from M1 runner
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      # Speeds up subsequent runs by caching the Cargo build output. First
+      # run still takes ~10 min per target; later runs ~2 min per target.
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      # The official Tauri action handles: building the app, signing it
+      # with the updater key, creating the GitHub Release (idempotent —
+      # the same release is reused across both matrix jobs), and
+      # uploading every artifact (.dmg, .app.tar.gz, .app.tar.gz.sig).
+      - name: Build + create release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # Frontend env vars need to land in the build, so re-declare
+          # them here using GitHub secrets. (.env.local isn't checked
+          # into the repo for security.)
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: '${{ github.ref_name }}'
+          releaseBody: |
+            See the changelog or commit history for what's new.
+
+            Auto-update will roll this out to installed copies on next launch.
+          releaseDraft: false
+          prerelease: false
+          args: --target ${{ matrix.target }}
+
+  # After both per-arch jobs finish, this job runs once to stitch
+  # together the `latest.json` manifest and upload it. The Tauri
+  # updater fetches THIS file from the Release's "latest" download URL
+  # and uses it to decide which platform's .app.tar.gz to download.
+  manifest:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Generate latest.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: node scripts/build-latest-json.mjs

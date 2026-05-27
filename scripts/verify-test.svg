@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- Hot magenta background — if you see ANY white at the corners of
+       the squircle on this test, the icon has white pixels there. If
+       you see magenta peek through, the corners are transparent (good). -->
+  <rect width="1024" height="1024" fill="#ff00aa"/>
+  <image href="render/icon-source.svg.png" x="0" y="0" width="1024" height="1024"/>
+</svg>

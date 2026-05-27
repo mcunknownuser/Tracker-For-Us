@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <!-- Chrome V — bright at the top, darker mid, slight bounce back
+         near the bottom to give it that metallic ribbon feel. -->
+    <linearGradient id="vGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"   stop-color="#ffffff"/>
+      <stop offset="35%"  stop-color="#e9e9e9"/>
+      <stop offset="65%"  stop-color="#9a9a9a"/>
+      <stop offset="100%" stop-color="#c4c4c4"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Squircle background — flat pure black, no gradient, no edge
+       highlight. The previous version had a subtle lighter top edge
+       that read as a white outline in the dock. -->
+  <rect x="0" y="0" width="1024" height="1024" rx="185" ry="185" fill="#000000"/>
+
+  <!-- The V. Clockwise from top-left outer:
+         outer top-left → inner top-left → inner apex → inner top-right
+         → outer top-right → outer apex → close.
+       Inner apex is higher than outer apex so the bottom of the V
+       comes to a clean point. -->
+  <polygon
+    points="232,272  368,272  512,672  656,272  792,272  512,792"
+    fill="url(#vGrad)"
+  />
+</svg>

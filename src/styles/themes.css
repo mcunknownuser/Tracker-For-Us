@@ -1,0 +1,223 @@
+/* =============================================================================
+   themes.css
+
+   Theme overrides for the app. Dark mode is the bare-Tailwind default and
+   needs no overrides — every other theme is selected by [data-theme="…"]
+   on the <html> element and remaps the neutral palette + a few accents.
+
+   Strategy: rather than refactor every page to use semantic tokens, we
+   override the specific Tailwind utility classes the app actually uses.
+   Selector specificity (0,0,2,0 with the attribute + class) beats the
+   bare class (0,0,1,0), so no !important needed.
+   ============================================================================= */
+
+/* -----------------------------------------------------------------------------
+   LIGHT — clean white, dark text. Sepia of borders for warmth.
+   ----------------------------------------------------------------------------- */
+[data-theme="light"] body                              { background-color: #ffffff; color: #0a0a0a; }
+[data-theme="light"] input:-webkit-autofill,
+[data-theme="light"] input:-webkit-autofill:hover,
+[data-theme="light"] input:-webkit-autofill:focus      { -webkit-box-shadow: 0 0 0 30px #ffffff inset !important; -webkit-text-fill-color: #0a0a0a !important; caret-color: #0a0a0a; }
+
+[data-theme="light"] .bg-neutral-950                   { background-color: #ffffff; }
+[data-theme="light"] .bg-neutral-900                   { background-color: #fafafa; }
+[data-theme="light"] .bg-neutral-800                   { background-color: #f5f5f5; }
+[data-theme="light"] .bg-neutral-100                   { background-color: #f5f5f5; }
+[data-theme="light"] .bg-neutral-50                    { background-color: #0a0a0a; }
+
+/* Muted text shades darkened so secondary/tertiary copy (small caps
+   labels, hints, dates, empty-state lines) stays readable on white.
+   Previous values (#a3a3a3, #c4c4c4) hit only ~2:1 contrast against
+   the white background — well below WCAG AA. The new values keep the
+   hierarchy (each step lighter than the one above) but every step
+   stays at least 4:1 against the page. */
+[data-theme="light"] .text-neutral-50,
+[data-theme="light"] .text-neutral-100,
+[data-theme="light"] .text-neutral-200                 { color: #0a0a0a; }
+[data-theme="light"] .text-neutral-300                 { color: #262626; }
+[data-theme="light"] .text-neutral-400                 { color: #404040; }
+[data-theme="light"] .text-neutral-500                 { color: #525252; }
+[data-theme="light"] .text-neutral-600                 { color: #6b6b6b; }
+[data-theme="light"] .text-neutral-700                 { color: #8a8a8a; }
+[data-theme="light"] .text-neutral-950                 { color: #ffffff; }
+
+[data-theme="light"] .border-neutral-50                { border-color: #0a0a0a; }
+[data-theme="light"] .border-neutral-700               { border-color: #d4d4d4; }
+[data-theme="light"] .border-neutral-800               { border-color: #e5e5e5; }
+[data-theme="light"] .border-neutral-900               { border-color: #f5f5f5; }
+[data-theme="light"] .divide-neutral-900 > * + *       { border-color: #f5f5f5; }
+
+[data-theme="light"] .placeholder\:text-neutral-600::placeholder { color: #a3a3a3; }
+
+[data-theme="light"] .hover\:bg-neutral-300:hover      { background-color: #262626; }
+[data-theme="light"] .hover\:bg-neutral-800:hover      { background-color: #e5e5e5; }
+[data-theme="light"] .hover\:bg-neutral-900:hover      { background-color: #f5f5f5; }
+[data-theme="light"] .hover\:bg-neutral-950\/50:hover  { background-color: rgba(245, 245, 245, 0.5); }
+
+[data-theme="light"] .hover\:border-neutral-400:hover  { border-color: #737373; }
+[data-theme="light"] .hover\:border-neutral-500:hover  { border-color: #737373; }
+[data-theme="light"] .hover\:border-neutral-600:hover  { border-color: #525252; }
+
+[data-theme="light"] .hover\:text-neutral-100:hover    { color: #0a0a0a; }
+[data-theme="light"] .hover\:text-neutral-200:hover    { color: #171717; }
+[data-theme="light"] .hover\:text-neutral-300:hover    { color: #404040; }
+
+[data-theme="light"] .focus\:border-neutral-400:focus  { border-color: #737373; }
+[data-theme="light"] .focus\:border-neutral-500:focus  { border-color: #525252; }
+
+/* -----------------------------------------------------------------------------
+   NIGHTTIME — pitch black with warm cream text. Low blue.
+   ----------------------------------------------------------------------------- */
+[data-theme="nighttime"] body                                 { background-color: #000000; color: #e7d4b5; }
+[data-theme="nighttime"] input:-webkit-autofill,
+[data-theme="nighttime"] input:-webkit-autofill:hover,
+[data-theme="nighttime"] input:-webkit-autofill:focus         { -webkit-box-shadow: 0 0 0 30px #0a0606 inset !important; -webkit-text-fill-color: #e7d4b5 !important; caret-color: #e7d4b5; }
+
+[data-theme="nighttime"] .bg-neutral-950                      { background-color: #0a0606; }
+[data-theme="nighttime"] .bg-neutral-900                      { background-color: #14100a; }
+[data-theme="nighttime"] .bg-neutral-800                      { background-color: #1f1812; }
+[data-theme="nighttime"] .bg-neutral-100                      { background-color: #1f1812; }
+[data-theme="nighttime"] .bg-neutral-50                       { background-color: #e7d4b5; }
+
+/* Muted shades pulled brighter so tertiary copy doesn't get lost
+   against the near-black background. Previous tones (#6a5b48,
+   #4a3f31) were close enough to the bg that small labels vanished. */
+[data-theme="nighttime"] .text-neutral-50,
+[data-theme="nighttime"] .text-neutral-100,
+[data-theme="nighttime"] .text-neutral-200                    { color: #e7d4b5; }
+[data-theme="nighttime"] .text-neutral-300                    { color: #d4c19c; }
+[data-theme="nighttime"] .text-neutral-400                    { color: #b8a384; }
+[data-theme="nighttime"] .text-neutral-500                    { color: #998870; }
+[data-theme="nighttime"] .text-neutral-600                    { color: #8a7a62; }
+[data-theme="nighttime"] .text-neutral-700                    { color: #6e624e; }
+[data-theme="nighttime"] .text-neutral-950                    { color: #0a0606; }
+
+[data-theme="nighttime"] .border-neutral-50                   { border-color: #e7d4b5; }
+[data-theme="nighttime"] .border-neutral-700                  { border-color: #3a3225; }
+[data-theme="nighttime"] .border-neutral-800                  { border-color: #2a221a; }
+[data-theme="nighttime"] .border-neutral-900                  { border-color: #1a140e; }
+[data-theme="nighttime"] .divide-neutral-900 > * + *          { border-color: #1a140e; }
+
+[data-theme="nighttime"] .placeholder\:text-neutral-600::placeholder { color: #6a5b48; }
+
+[data-theme="nighttime"] .hover\:bg-neutral-300:hover         { background-color: #c9b797; }
+[data-theme="nighttime"] .hover\:bg-neutral-800:hover         { background-color: #1f1812; }
+[data-theme="nighttime"] .hover\:bg-neutral-900:hover         { background-color: #14100a; }
+
+[data-theme="nighttime"] .hover\:border-neutral-400:hover     { border-color: #87765f; }
+[data-theme="nighttime"] .hover\:border-neutral-500:hover     { border-color: #87765f; }
+[data-theme="nighttime"] .hover\:border-neutral-600:hover     { border-color: #6a5b48; }
+
+[data-theme="nighttime"] .hover\:text-neutral-100:hover       { color: #e7d4b5; }
+[data-theme="nighttime"] .hover\:text-neutral-200:hover       { color: #d9c39e; }
+[data-theme="nighttime"] .hover\:text-neutral-300:hover       { color: #c9b797; }
+
+[data-theme="nighttime"] .focus\:border-neutral-400:focus     { border-color: #87765f; }
+[data-theme="nighttime"] .focus\:border-neutral-500:focus     { border-color: #a8957a; }
+
+/* Accents — softer in nighttime so they don't pierce. */
+[data-theme="nighttime"] .text-emerald-400                    { color: #86c777; }
+[data-theme="nighttime"] .text-rose-400                       { color: #d4806a; }
+
+/* -----------------------------------------------------------------------------
+   SEPIA — warm cream paper with dark brown text.
+   ----------------------------------------------------------------------------- */
+[data-theme="sepia"] body                                     { background-color: #f4ecd8; color: #5d4e37; }
+[data-theme="sepia"] input:-webkit-autofill,
+[data-theme="sepia"] input:-webkit-autofill:hover,
+[data-theme="sepia"] input:-webkit-autofill:focus             { -webkit-box-shadow: 0 0 0 30px #faf5e8 inset !important; -webkit-text-fill-color: #5d4e37 !important; caret-color: #5d4e37; }
+
+[data-theme="sepia"] .bg-neutral-950                          { background-color: #faf5e8; }
+[data-theme="sepia"] .bg-neutral-900                          { background-color: #f4ecd8; }
+[data-theme="sepia"] .bg-neutral-800                          { background-color: #e8dcc0; }
+[data-theme="sepia"] .bg-neutral-100                          { background-color: #e8dcc0; }
+[data-theme="sepia"] .bg-neutral-50                           { background-color: #5d4e37; }
+
+/* Darkened to match the same readability standard used on the light
+   theme. Previously muted browns (#a89878, #c4b59a) dissolved into
+   the cream paper background. */
+[data-theme="sepia"] .text-neutral-50,
+[data-theme="sepia"] .text-neutral-100,
+[data-theme="sepia"] .text-neutral-200                        { color: #5d4e37; }
+[data-theme="sepia"] .text-neutral-300                        { color: #604f37; }
+[data-theme="sepia"] .text-neutral-400                        { color: #6b5d45; }
+[data-theme="sepia"] .text-neutral-500                        { color: #7d6e54; }
+[data-theme="sepia"] .text-neutral-600                        { color: #8b7c62; }
+[data-theme="sepia"] .text-neutral-700                        { color: #9d8c70; }
+[data-theme="sepia"] .text-neutral-950                        { color: #faf5e8; }
+
+[data-theme="sepia"] .border-neutral-50                       { border-color: #5d4e37; }
+[data-theme="sepia"] .border-neutral-700                      { border-color: #c4b59a; }
+[data-theme="sepia"] .border-neutral-800                      { border-color: #d4c4a0; }
+[data-theme="sepia"] .border-neutral-900                      { border-color: #e8dcc0; }
+[data-theme="sepia"] .divide-neutral-900 > * + *              { border-color: #e8dcc0; }
+
+[data-theme="sepia"] .placeholder\:text-neutral-600::placeholder { color: #a89878; }
+
+[data-theme="sepia"] .hover\:bg-neutral-300:hover             { background-color: #6b5d45; }
+[data-theme="sepia"] .hover\:bg-neutral-800:hover             { background-color: #e8dcc0; }
+[data-theme="sepia"] .hover\:bg-neutral-900:hover             { background-color: #efe4cc; }
+
+[data-theme="sepia"] .hover\:border-neutral-400:hover         { border-color: #8b7c62; }
+[data-theme="sepia"] .hover\:border-neutral-500:hover         { border-color: #8b7c62; }
+[data-theme="sepia"] .hover\:border-neutral-600:hover         { border-color: #7d6e54; }
+
+[data-theme="sepia"] .hover\:text-neutral-100:hover           { color: #5d4e37; }
+[data-theme="sepia"] .hover\:text-neutral-200:hover           { color: #6b5d45; }
+[data-theme="sepia"] .hover\:text-neutral-300:hover           { color: #7d6e54; }
+
+[data-theme="sepia"] .focus\:border-neutral-400:focus         { border-color: #8b7c62; }
+[data-theme="sepia"] .focus\:border-neutral-500:focus         { border-color: #7d6e54; }
+
+[data-theme="sepia"] .text-emerald-400                        { color: #6b8e23; }
+[data-theme="sepia"] .text-rose-400                           { color: #b8551c; }
+
+/* -----------------------------------------------------------------------------
+   HIGH CONTRAST — pure black + pure white, stark borders.
+   ----------------------------------------------------------------------------- */
+[data-theme="high-contrast"] body                             { background-color: #000000; color: #ffffff; }
+[data-theme="high-contrast"] input:-webkit-autofill,
+[data-theme="high-contrast"] input:-webkit-autofill:hover,
+[data-theme="high-contrast"] input:-webkit-autofill:focus     { -webkit-box-shadow: 0 0 0 30px #000000 inset !important; -webkit-text-fill-color: #ffffff !important; caret-color: #ffffff; }
+
+[data-theme="high-contrast"] .bg-neutral-950                  { background-color: #000000; }
+[data-theme="high-contrast"] .bg-neutral-900                  { background-color: #000000; }
+[data-theme="high-contrast"] .bg-neutral-800                  { background-color: #1a1a1a; }
+[data-theme="high-contrast"] .bg-neutral-100                  { background-color: #1a1a1a; }
+[data-theme="high-contrast"] .bg-neutral-50                   { background-color: #ffffff; }
+
+[data-theme="high-contrast"] .text-neutral-50,
+[data-theme="high-contrast"] .text-neutral-100,
+[data-theme="high-contrast"] .text-neutral-200,
+[data-theme="high-contrast"] .text-neutral-300                { color: #ffffff; }
+[data-theme="high-contrast"] .text-neutral-400                { color: #e5e5e5; }
+[data-theme="high-contrast"] .text-neutral-500                { color: #d4d4d4; }
+[data-theme="high-contrast"] .text-neutral-600                { color: #a3a3a3; }
+[data-theme="high-contrast"] .text-neutral-700                { color: #737373; }
+[data-theme="high-contrast"] .text-neutral-950                { color: #000000; }
+
+[data-theme="high-contrast"] .border-neutral-50               { border-color: #ffffff; }
+[data-theme="high-contrast"] .border-neutral-700              { border-color: #ffffff; }
+[data-theme="high-contrast"] .border-neutral-800              { border-color: #d4d4d4; }
+[data-theme="high-contrast"] .border-neutral-900              { border-color: #a3a3a3; }
+[data-theme="high-contrast"] .divide-neutral-900 > * + *      { border-color: #a3a3a3; }
+
+[data-theme="high-contrast"] .placeholder\:text-neutral-600::placeholder { color: #a3a3a3; }
+
+[data-theme="high-contrast"] .hover\:bg-neutral-300:hover     { background-color: #d4d4d4; }
+[data-theme="high-contrast"] .hover\:bg-neutral-800:hover     { background-color: #262626; }
+[data-theme="high-contrast"] .hover\:bg-neutral-900:hover     { background-color: #1a1a1a; }
+
+[data-theme="high-contrast"] .hover\:border-neutral-400:hover { border-color: #ffffff; }
+[data-theme="high-contrast"] .hover\:border-neutral-500:hover { border-color: #ffffff; }
+[data-theme="high-contrast"] .hover\:border-neutral-600:hover { border-color: #ffffff; }
+
+[data-theme="high-contrast"] .hover\:text-neutral-100:hover   { color: #ffffff; }
+[data-theme="high-contrast"] .hover\:text-neutral-200:hover   { color: #ffffff; }
+[data-theme="high-contrast"] .hover\:text-neutral-300:hover   { color: #ffffff; }
+
+[data-theme="high-contrast"] .focus\:border-neutral-400:focus { border-color: #ffffff; }
+[data-theme="high-contrast"] .focus\:border-neutral-500:focus { border-color: #ffffff; }
+
+[data-theme="high-contrast"] .text-emerald-400                { color: #00ff00; }
+[data-theme="high-contrast"] .text-rose-400                   { color: #ff0000; }

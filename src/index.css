@@ -1,0 +1,60 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-feature-settings: 'ss01', 'cv11';
+}
+
+/* Reset autofill colors so dark inputs stay dark. */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 30px #0a0a0a inset !important;
+  -webkit-text-fill-color: #fafafa !important;
+  caret-color: #fafafa;
+}
+
+/* Smooth scroll for in-page navigation. */
+html {
+  scroll-behavior: smooth;
+}
+
+/* -----------------------------------------------------------------------------
+ * Hide scrollbars entirely.
+ *
+ * The user explicitly never wants to see the scrollbar — not at rest, not
+ * on hover, not while scrolling. Wheel/trackpad scrolling still works
+ * normally; we're only suppressing the visual chrome.
+ * --------------------------------------------------------------------------- */
+
+/* Firefox */
+* {
+  scrollbar-width: none;
+}
+
+/* Webkit (Safari + Chrome) — collapse every scrollbar pseudo-element. */
+::-webkit-scrollbar,
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-track-piece,
+::-webkit-scrollbar-thumb,
+::-webkit-scrollbar-corner,
+::-webkit-scrollbar-button {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  background: transparent !important;
+}
+
+/* IE/legacy Edge fallback. Harmless on other browsers. */
+* {
+  -ms-overflow-style: none;
+}
