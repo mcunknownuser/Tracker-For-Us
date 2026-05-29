@@ -46,9 +46,12 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
       // draw our own ring) and `focus-visible:` ensures keyboard users
       // see the ring without mouse users getting it on every click.
       className={
-        'block w-full border bg-neutral-950 px-3.5 py-3 text-sm text-neutral-100 caret-neutral-100 ' +
+        // Caret uses currentColor so it follows the themed text color
+        // (dark on light/sepia, light on dark) — making the blinking
+        // cursor always visible against the input background.
+        'block w-full border bg-neutral-950 px-3.5 py-3 text-sm text-neutral-100 caret-current ' +
         'placeholder:text-neutral-600 ' +
-        'border-neutral-800 hover:border-neutral-700 ' +
+        'border-neutral-800 hover:border-neutral-600 ' +
         'focus:outline-none focus:border-neutral-300 focus:ring-1 focus:ring-neutral-300 ' +
         'transition-colors ' +
         className
