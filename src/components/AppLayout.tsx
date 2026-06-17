@@ -47,7 +47,7 @@ export function AppLayout({ agency }: AppLayoutProps) {
         onMobileClose={() => setMobileNavOpen(false)}
       />
 
-      <div className="flex min-w-0 flex-1 flex-col bg-[#050505]">
+      <div className="flex min-w-0 flex-1 flex-col bg-neutral-950">
         {/* Mobile top bar — hidden on md+ since the sidebar is permanently
             visible there. Holds the hamburger, wordmark, and search. */}
         <header className="flex items-center justify-between border-b border-neutral-900 bg-neutral-950 px-4 py-3 md:hidden">
