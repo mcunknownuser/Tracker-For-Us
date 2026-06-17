@@ -6,6 +6,9 @@ export default {
       fontFamily: {
         serif: ['"Playfair Display"', 'Georgia', 'serif'],
         sans: ['Inter', 'system-ui', 'sans-serif'],
+        // Used for numeric values site-wide (see the .tabular-nums rule in
+        // index.css), and available as a utility if needed elsewhere.
+        fraunces: ['Fraunces', 'Georgia', 'serif'],
       },
       // Use Tailwind's built-in `neutral` palette as the source of truth for
       // backgrounds, borders, and text. No brand colors — the design is

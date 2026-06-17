@@ -5,6 +5,7 @@
 
 import { supabase } from './supabase';
 import { getActiveAgencyId } from './agency';
+import { logAudit } from './audit';
 import type { TeamMember } from './teamMembers';
 
 // =============================================================================
@@ -226,7 +227,9 @@ export async function createPayment(input: {
     .select(PAY_COLS)
     .single();
   if (error) throw error;
-  return data as Payment;
+  const created = data as Payment;
+  void logAudit({ entityType: 'payment', entityId: created.id, action: 'create', next: created });
+  return created;
 }
 
 export async function updatePayment(
@@ -237,6 +240,8 @@ export async function updatePayment(
   if (patch.amount_cents !== undefined) cleaned.amount_cents = patch.amount_cents;
   if (patch.paid_on !== undefined) cleaned.paid_on = patch.paid_on;
   if (patch.note !== undefined) cleaned.note = patch.note?.trim() || null;
+  // Capture the row before the change so the audit trail records before → after.
+  const { data: prev } = await supabase.from('payments').select(PAY_COLS).eq('id', id).single();
   const { data, error } = await supabase
     .from('payments')
     .update(cleaned)
@@ -244,15 +249,36 @@ export async function updatePayment(
     .select(PAY_COLS)
     .single();
   if (error) throw error;
-  return data as Payment;
+  const updated = data as Payment;
+  void logAudit({ entityType: 'payment', entityId: id, action: 'update', prev, next: updated });
+  return updated;
 }
 
 export async function softDeletePayment(id: string): Promise<void> {
+  const { data: prev } = await supabase.from('payments').select(PAY_COLS).eq('id', id).single();
   const { error } = await supabase
     .from('payments')
     .update({ deleted_at: new Date().toISOString() })
     .eq('id', id);
   if (error) throw error;
+  void logAudit({ entityType: 'payment', entityId: id, action: 'delete', prev });
+}
+
+// All-time payment history for one member, INCLUDING soft-deleted rows
+// (the ledger toggles their visibility). Newest first.
+export type LedgerPayment = Payment & { deleted_at: string | null };
+
+export async function listMemberPaymentHistory(memberId: string): Promise<LedgerPayment[]> {
+  const agencyId = getActiveAgencyId();
+  if (!agencyId) return [];
+  const { data, error } = await supabase
+    .from('payments')
+    .select(PAY_COLS + ', deleted_at')
+    .eq('agency_id', agencyId)
+    .eq('team_member_id', memberId)
+    .order('paid_on', { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as unknown as LedgerPayment[];
 }
 
 // =============================================================================
@@ -272,6 +298,48 @@ export type MemberSummary = {
   owedCents: number;
 };
 
+// Describes exactly how a member's earnings were computed, so the UI can
+// show the arithmetic (not just the result). Mirrors the branches below.
+export type EarningsBasis =
+  | { kind: 'commission'; grossCents: number; rate: number }
+  | { kind: 'share'; grossCents: number; rate: number }
+  | { kind: 'flat'; amountCents: number; periodDays: number; periodsThisMonth: number }
+  | { kind: 'none' };
+
+// Single source of truth for "what did this member earn this month". Both the
+// summary cards and the drill-down modal call this so their numbers always agree.
+export function earnedCentsFor(
+  member: TeamMember,
+  salesCents: number,
+  withdrawalsCents: number,
+): { earnedCents: number; basis: EarningsBasis } {
+  if (member.pay_structure === 'commission') {
+    const rate = member.rate ?? 0;
+    return { earnedCents: Math.round(salesCents * rate), basis: { kind: 'commission', grossCents: salesCents, rate } };
+  }
+  if (member.pay_structure === 'share') {
+    const rate = member.rate ?? 0;
+    return { earnedCents: Math.round(withdrawalsCents * rate), basis: { kind: 'share', grossCents: withdrawalsCents, rate } };
+  }
+  if (member.pay_structure === 'flat') {
+    const period = member.flat_period_days ?? 0;
+    const amount = member.flat_amount_cents ?? 0;
+    if (period > 0) {
+      let perMonth: number;
+      if (period === 7) perMonth = 4;
+      else if (period === 14) perMonth = 2;
+      else if (period === 30) perMonth = 1;
+      else if (period >= 360) perMonth = 1 / 12;
+      else perMonth = 30 / period;
+      return {
+        earnedCents: Math.round(amount * perMonth),
+        basis: { kind: 'flat', amountCents: amount, periodDays: period, periodsThisMonth: perMonth },
+      };
+    }
+  }
+  return { earnedCents: 0, basis: { kind: 'none' } };
+}
+
 export function buildSummaries(
   members: TeamMember[],
   sales: ChatterSale[],
@@ -289,31 +357,7 @@ export function buildSummaries(
     const withdrawalsCents = wdByMember.get(m.id) ?? 0;
     const paidCents = paidByMember.get(m.id) ?? 0;
 
-    let earnedCents = 0;
-    if (m.pay_structure === 'commission') {
-      earnedCents = Math.round(salesCents * (m.rate ?? 0));
-    } else if (m.pay_structure === 'share') {
-      earnedCents = Math.round(withdrawalsCents * (m.rate ?? 0));
-    } else if (m.pay_structure === 'flat') {
-      // Standard payroll convention: a month contains a fixed number of
-      // periods regardless of calendar drift.
-      //   weekly  -> 4 periods/month
-      //   biweekly -> 2 periods/month
-      //   monthly -> 1 period/month
-      //   yearly  -> 1/12 of a year
-      //   custom  -> prorate as (30 / period_days)
-      const period = m.flat_period_days ?? 0;
-      const amount = m.flat_amount_cents ?? 0;
-      if (period > 0) {
-        let perMonth: number;
-        if (period === 7) perMonth = 4;
-        else if (period === 14) perMonth = 2;
-        else if (period === 30) perMonth = 1;
-        else if (period >= 360) perMonth = 1 / 12;
-        else perMonth = 30 / period;
-        earnedCents = Math.round(amount * perMonth);
-      }
-    }
+    const { earnedCents } = earnedCentsFor(m, salesCents, withdrawalsCents);
 
     const owedCents = Math.max(0, earnedCents - paidCents);
 

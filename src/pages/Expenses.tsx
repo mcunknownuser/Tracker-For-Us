@@ -5,7 +5,7 @@
 // =============================================================================
 
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { PageHeader } from '../components/PageHeader';
 import { Modal } from '../components/Modal';
 import { Button, Field, Label, TextLink } from '../components/FormControls';
@@ -257,42 +257,27 @@ function DueRow({
   }
 
   return (
-    <div className="grid grid-cols-[1fr,auto] items-start gap-6 px-6 py-4">
+    <div className="grid grid-cols-[1fr,auto] items-start gap-6 px-4 py-3">
       {/* Left column: all info (name, meta, note). Grows as needed. */}
       <div className="min-w-0">
-        <div className="flex items-baseline gap-3">
-          <span className="truncate font-serif text-lg font-medium text-neutral-50">
+        <div className="flex items-center gap-2">
+          <span className="truncate text-sm font-medium text-neutral-100">
             {item.name}
           </span>
-          <span className="text-[10px] uppercase tracking-widest text-neutral-500">
+          <span className="shrink-0 border border-neutral-800 px-1.5 py-px text-[9px] font-medium uppercase tracking-widest text-neutral-500">
             {item.recurrence_kind ?? 'recurring'}
           </span>
         </div>
-        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] uppercase tracking-widest text-neutral-500">
-          <span>Due {formatShortDate(item.next_due_on ?? '')}</span>
-          <span>{formatCents(item.amount_cents)}</span>
-          {category && (
-            <span className="flex items-center gap-1.5">
-              <span
-                className="inline-block h-2 w-2"
-                style={{ backgroundColor: category.color }}
-              />
-              {category.name}
-            </span>
-          )}
-          {method && (
-            <span className="flex items-center gap-1.5">
-              <span
-                className="inline-block h-2 w-2"
-                style={{ backgroundColor: method.color }}
-              />
-              {method.name}
-            </span>
-          )}
+        <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-neutral-500">
+          <span>
+            Due {formatShortDate(item.next_due_on ?? '')} · {formatCents(item.amount_cents)}
+          </span>
+          {category && <TagChip color={category.color} label={category.name} />}
+          {method && <TagChip color={method.color} label={method.name} />}
         </div>
         {item.note && (
-          <div className="mt-1.5 text-xs italic text-neutral-500">
-            — {item.note}
+          <div className="mt-1.5 truncate text-xs text-neutral-500">
+            {item.note}
           </div>
         )}
       </div>
@@ -351,21 +336,36 @@ function StatsRow({ expenses }: { expenses: Expense[] }) {
   }, [expenses]);
 
   return (
-    <div className="mb-10 grid grid-cols-1 gap-3 sm:grid-cols-3">
-      <Stat label="This month" value={formatCents(stats.totalThisMonth)} />
-      <Stat label="Recurring (this month)" value={formatCents(stats.recurringThisMonth)} />
-      <Stat label="Entries on file" value={stats.countAllTime.toLocaleString()} />
+    <div className="mb-8 grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <Stat label="This month" value={formatCents(stats.totalThisMonth)} tone="cost" />
+      <Stat label="Recurring (this month)" value={formatCents(stats.recurringThisMonth)} tone="dept" />
+      <Stat label="Entries on file" value={stats.countAllTime.toLocaleString()} tone="neutral" />
     </div>
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+type StatTone = 'revenue' | 'cost' | 'key' | 'warn' | 'dept' | 'neutral';
+
+const TONE_STYLES: Record<StatTone, { accent: string; label: string; dot: string }> = {
+  revenue: { accent: 'before:bg-[#b8956a]', label: 'text-[#b8956a]', dot: 'bg-[#b8956a]' },
+  cost:    { accent: 'before:bg-[#b8857a]', label: 'text-[#b8857a]', dot: 'bg-[#b8857a]' },
+  key:     { accent: 'before:bg-[#c8b896]', label: 'text-[#c8b896]', dot: 'bg-[#c8b896]' },
+  warn:    { accent: 'before:bg-[#b8754d]', label: 'text-[#b8754d]', dot: 'bg-[#b8754d]' },
+  dept:    { accent: 'before:bg-[#a89890]', label: 'text-[#a89890]', dot: 'bg-[#a89890]' },
+  neutral: { accent: 'before:bg-[#7c706a]', label: 'text-[#7c706a]', dot: 'bg-[#7c706a]' },
+};
+
+function Stat({ label, value, tone = 'neutral' }: { label: string; value: string; tone?: StatTone }) {
+  const t = TONE_STYLES[tone];
   return (
-    <div className="border border-neutral-800 bg-neutral-950 p-6">
-      <div className="text-[10px] font-medium uppercase tracking-editorial text-neutral-500">
-        {label}
+    <div className="relative text-left transition-all premium-card-primary p-7">
+      <div className="flex items-center gap-2">
+        <span aria-hidden className={'inline-block h-2 w-2 ' + t.dot} />
+        <div className={'text-[11px] font-bold uppercase tracking-editorial ' + t.label}>
+          {label}
+        </div>
       </div>
-      <div className="mt-3 font-serif text-3xl font-semibold tracking-tight text-neutral-50">
+      <div className="mt-3 font-serif text-4xl font-semibold tabular-nums tracking-tight text-neutral-50">
         {value}
       </div>
     </div>
@@ -408,21 +408,23 @@ function MonthlyList({
   }, [expenses]);
 
   return (
-    <div className="space-y-12">
+    <div className="space-y-6">
       {grouped.map(([key, group]) => {
         const total = group.reduce((s, e) => s + e.amount_cents, 0);
         return (
-          <section key={key}>
-            <div className="mb-4 flex items-baseline justify-between border-b border-neutral-800 pb-3">
+          <section key={key} className="border border-neutral-800 bg-neutral-950">
+            <div className="flex items-baseline justify-between border-b border-neutral-800 px-4 py-3">
               <div className="flex items-baseline gap-3">
-                <h2 className="font-serif text-2xl font-semibold tracking-tight text-neutral-100">
+                <h2 className="font-serif text-lg font-semibold tracking-tight text-neutral-100">
                   {monthLabel(key)}
                 </h2>
-                <span className="text-[10px] font-medium uppercase tracking-editorial text-neutral-500">
+                <span className="text-[10px] font-medium uppercase tracking-editorial text-neutral-600">
                   {group.length} {group.length === 1 ? 'entry' : 'entries'}
                 </span>
               </div>
-              <div className="text-sm text-neutral-300">{formatCents(total)}</div>
+              <div className="text-sm font-medium tabular-nums text-neutral-200">
+                {formatCents(total)}
+              </div>
             </div>
 
             <div className="divide-y divide-neutral-900">
@@ -457,52 +459,48 @@ function ExpenseRow({
   return (
     <button
       onClick={onClick}
-      className="group grid w-full grid-cols-[1fr,auto] items-start gap-4 py-4 text-left transition-colors hover:bg-neutral-900"
+      className="group flex w-full items-center gap-4 px-4 py-3 text-left transition-colors hover:bg-neutral-900/60"
     >
-      <div className="min-w-0">
-        <div className="flex items-baseline gap-3">
-          <span className="truncate font-serif text-lg font-medium text-neutral-50">
+      <span className="w-14 shrink-0 text-xs tabular-nums text-neutral-500">
+        {formatShortDate(expense.incurred_on)}
+      </span>
+
+      <span className="min-w-0 flex-1">
+        <span className="flex items-center gap-2">
+          <span className="truncate text-sm font-medium text-neutral-100">
             {expense.name}
           </span>
           {expense.is_recurring && (
-            <span className="text-[9px] font-medium uppercase tracking-widest text-neutral-500">
+            <span className="shrink-0 border border-neutral-800 px-1.5 py-px text-[9px] font-medium uppercase tracking-widest text-neutral-500">
               Recurring
             </span>
           )}
-        </div>
-        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] uppercase tracking-widest text-neutral-500">
-          {category && (
-            <span className="flex items-center gap-1.5">
-              <span
-                className="inline-block h-2 w-2"
-                style={{ backgroundColor: category.color }}
-              />
-              {category.name}
-            </span>
-          )}
-          {method && (
-            <span className="flex items-center gap-1.5">
-              <span
-                className="inline-block h-2 w-2"
-                style={{ backgroundColor: method.color }}
-              />
-              {method.name}
-            </span>
-          )}
-          <span>{formatShortDate(expense.incurred_on)}</span>
-        </div>
+        </span>
         {expense.note && (
-          <div className="mt-1.5 text-xs italic text-neutral-500">
-            — {expense.note}
-          </div>
+          <span className="mt-0.5 block truncate text-xs text-neutral-500">
+            {expense.note}
+          </span>
         )}
-      </div>
-      <div className="shrink-0 text-right">
-        <div className="text-base font-medium text-neutral-100">
-          {formatCents(expense.amount_cents)}
-        </div>
-      </div>
+      </span>
+
+      <span className="hidden shrink-0 items-center gap-2 sm:flex">
+        {category && <TagChip color={category.color} label={category.name} />}
+        {method && <TagChip color={method.color} label={method.name} />}
+      </span>
+
+      <span className="w-24 shrink-0 text-right text-sm font-medium tabular-nums text-neutral-100">
+        {formatCents(expense.amount_cents)}
+      </span>
     </button>
+  );
+}
+
+function TagChip({ color, label }: { color: string; label: string }) {
+  return (
+    <span className="inline-flex max-w-[10rem] items-center gap-1.5 border border-neutral-800 bg-neutral-900/60 px-2 py-0.5 text-[11px] text-neutral-400">
+      <span className="h-1.5 w-1.5 shrink-0" style={{ backgroundColor: color }} />
+      <span className="truncate">{label}</span>
+    </span>
   );
 }
 
@@ -561,6 +559,13 @@ function ExpenseFormModal({
   onSaved: () => void;
 }) {
   const editing = modal.mode === 'edit' ? modal.expense : null;
+  const navigate = useNavigate();
+  // Close the modal and jump to the expense settings page (e.g. when the user
+  // picks "+ Add new category" from inside a dropdown).
+  function goToSettings() {
+    onClose();
+    navigate(ROUTES.settingsExpenses);
+  }
 
   const [name, setName] = useState(editing?.name ?? '');
   const [amountDollars, setAmountDollars] = useState(
@@ -710,6 +715,7 @@ function ExpenseFormModal({
               value={categoryId}
               onChange={setCategoryId}
               options={categoryOptions}
+              footer={{ label: 'Add new category', onSelect: goToSettings }}
             />
           )}
         </div>
@@ -724,6 +730,7 @@ function ExpenseFormModal({
               value={methodId}
               onChange={setMethodId}
               options={methodOptions}
+              footer={{ label: 'Add new payment method', onSelect: goToSettings }}
             />
           )}
         </div>

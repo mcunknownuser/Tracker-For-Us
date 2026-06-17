@@ -538,7 +538,7 @@ export function parseInflowwCsv(text: string): ParseResult {
   const flatRows = sections.flatMap((s) => s.rows);
   if (flatRows.length === 0) {
     warnings.push(
-      'No tracking links recognized. Expected Infloww format with section headers like "ModelName(ID): Table 1".',
+      'No tracking links recognized. Expected the standard export format with section headers like "ModelName(ID): Table 1".',
     );
   }
 
@@ -700,17 +700,41 @@ export async function importParsedRows(rows: ParsedRow[]): Promise<ImportSummary
     });
   }
 
+  // Upsert each new link. We can't batch-insert: the "existing" set above can
+  // miss rows (PostgREST caps SELECTs at 1000 rows, and RLS can hide some), so
+  // a link we think is new may already exist as an active row. A batch insert
+  // would then be rejected wholesale with a unique violation (23505). And we
+  // can't use PostgREST upsert because the conflict target is a *partial*
+  // index (error 42P10). So: insert per row, and on a unique violation fall
+  // back to fetching the existing active link's id and reusing it.
   let newLinks = 0;
-  if (newLinkPayload.length > 0) {
-    const linkIns = await supabase
-      .from('tracking_links')
-      .insert(newLinkPayload)
-      .select('id, user_id, name');
-    if (linkIns.error) throw wrapSupabaseError('Inserting links', linkIns.error);
-    for (const l of (linkIns.data ?? []) as { id: string; user_id: string; name: string }[]) {
-      linkIdByKey.set(linkKey(l.user_id, l.name), l.id);
-    }
-    newLinks = linkIns.data?.length ?? 0;
+  const upserted = await Promise.all(
+    newLinkPayload.map(async (payload) => {
+      const ins = await supabase
+        .from('tracking_links')
+        .insert(payload)
+        .select('id, user_id, name')
+        .single();
+      if (!ins.error && ins.data) {
+        return { row: ins.data as { id: string; user_id: string; name: string }, inserted: true };
+      }
+      if (ins.error?.code === '23505') {
+        const existing = await supabase
+          .from('tracking_links')
+          .select('id, user_id, name')
+          .eq('user_id', payload.user_id)
+          .eq('name', payload.name)
+          .is('deleted_at', null)
+          .single();
+        if (existing.error) throw wrapSupabaseError('Resolving existing link', existing.error);
+        return { row: existing.data as { id: string; user_id: string; name: string }, inserted: false };
+      }
+      throw wrapSupabaseError('Inserting links', ins.error!);
+    }),
+  );
+  for (const { row, inserted } of upserted) {
+    linkIdByKey.set(linkKey(row.user_id, row.name), row.id);
+    if (inserted) newLinks += 1;
   }
 
   // Count how many rows mapped to an existing link.

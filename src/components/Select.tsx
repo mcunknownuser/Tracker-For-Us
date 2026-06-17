@@ -23,6 +23,9 @@ type SelectProps = {
   options: SelectOption[];
   placeholder?: string;
   disabled?: boolean;
+  // Optional action row pinned under the options (e.g. "+ Add new category"
+  // routing to Settings). Doesn't select a value.
+  footer?: { label: string; onSelect: () => void };
 };
 
 export function Select({
@@ -32,6 +35,7 @@ export function Select({
   options,
   placeholder,
   disabled,
+  footer,
 }: SelectProps) {
   const [open, setOpen] = useState(false);
   // 'down' = panel opens below the trigger (default), 'up' = above.
@@ -146,6 +150,19 @@ export function Select({
                 </button>
               );
             })
+          )}
+          {footer && (
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                footer.onSelect();
+              }}
+              className="flex w-full items-center gap-2 border-t border-dashed border-neutral-800 px-3.5 py-2.5 text-left text-sm text-neutral-400 transition-colors hover:bg-neutral-900 hover:text-neutral-100"
+            >
+              <span className="text-neutral-600">+</span>
+              <span className="truncate">{footer.label}</span>
+            </button>
           )}
         </div>
       )}

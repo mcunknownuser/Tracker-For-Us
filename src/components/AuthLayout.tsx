@@ -22,7 +22,7 @@ export function AuthLayout({ children, eyebrow, title, subtitle }: AuthLayoutPro
       {/* Brand bar */}
       <header className="px-8 py-8">
         <div className="font-serif text-2xl font-bold tracking-tight">
-          VoltrisAi
+          Traccr
         </div>
       </header>
 
@@ -52,7 +52,7 @@ export function AuthLayout({ children, eyebrow, title, subtitle }: AuthLayoutPro
 
       {/* Footer */}
       <footer className="px-8 py-6 text-[11px] uppercase tracking-widest text-neutral-600">
-        &copy; {new Date().getFullYear()} VoltrisAi
+        &copy; {new Date().getFullYear()} Traccr
       </footer>
     </div>
   );

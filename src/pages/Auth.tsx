@@ -130,7 +130,7 @@ export function Auth() {
       maxWidth="max-w-md"
     >
       <p className="text-sm leading-relaxed text-neutral-300">
-        VoltrisAi is in active beta. Things are stable enough for daily use,
+        Traccr is in active beta. Things are stable enough for daily use,
         but you may notice the occasional rough edge while we polish.
       </p>
       <p className="mt-3 text-sm leading-relaxed text-neutral-400">
@@ -220,16 +220,12 @@ export function Auth() {
       {/* Mode switchers */}
       <div className="mt-8 flex flex-col gap-3 border-t border-neutral-900 pt-6">
         {mode === 'sign-in' && (
-          <>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-neutral-500">No account yet?</span>
-              <TextLink onClick={() => setMode('sign-up')}>Create one</TextLink>
-            </div>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-neutral-500">Forgot your password?</span>
-              <TextLink onClick={() => setMode('forgot')}>Reset it</TextLink>
-            </div>
-          </>
+          // Sign-up is intentionally not offered in the app — accounts are
+          // created on the website. Only sign-in + password reset here.
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-neutral-500">Forgot your password?</span>
+            <TextLink onClick={() => setMode('forgot')}>Reset it</TextLink>
+          </div>
         )}
         {mode === 'sign-up' && (
           <div className="flex items-center justify-between text-sm">

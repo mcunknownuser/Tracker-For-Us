@@ -11,27 +11,22 @@
 //    3. Invites      — optional. Generate join links to share with teammates.
 // =============================================================================
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { Agency } from '../lib/agency';
 import { completeOnboarding } from '../lib/agency';
 import {
-  type AgencyRole,
   buildInviteUrl,
   createInvite,
 } from '../lib/invites';
 import {
-  type Department,
   type DepartmentLayout,
   createDepartment,
   listDepartments,
 } from '../lib/departments';
 import {
-  type StaffRole,
   type PayStructure,
   createStaffRole,
-  listStaffRoles,
 } from '../lib/staffRoles';
-import { Select } from '../components/Select';
 import { toast } from '../lib/toast';
 
 type Step = 'welcome' | 'departments' | 'invites';
@@ -61,7 +56,7 @@ export function Onboarding({
   return (
     <div className="flex min-h-screen flex-col bg-neutral-950 text-neutral-100">
       <header className="flex items-center justify-between px-8 py-8">
-        <div className="font-serif text-2xl font-bold tracking-tight">VoltrisAi</div>
+        <div className="font-serif text-2xl font-bold tracking-tight">Traccr</div>
         <StepIndicator step={step} />
       </header>
 
@@ -175,7 +170,7 @@ function WelcomeStep({
 
 const TOUR: { label: string; title: string; hint: string }[] = [
   { label: 'Tab 1', title: 'Departments', hint: 'Your own — Models for sales/withdrawals, Marketing for accounts/income.' },
-  { label: 'Tab 2', title: 'Tracking',    hint: 'Import Infloww CSVs to see daily growth per link.' },
+  { label: 'Tab 2', title: 'Tracking',    hint: 'Import CSVs from your tracking tool to see daily growth per link.' },
   { label: 'Tab 3', title: 'Expenses',    hint: 'Recurring or one-off costs by category and method.' },
   { label: 'Tab 4', title: 'Employees',   hint: 'Your team, their roles, and how they get paid.' },
   { label: 'Tab 5', title: 'Dashboard',   hint: 'Totals, top performers, and what is owed.' },
@@ -542,8 +537,6 @@ function DepartmentCard({
 
 type DraftInvite = {
   email: string;
-  role: AgencyRole;
-  staffRoleId: string;
 };
 
 function InvitesStep({
@@ -557,57 +550,16 @@ function InvitesStep({
   onFinish: () => void;
   finishing: boolean;
 }) {
-  const [drafts, setDrafts] = useState<DraftInvite[]>([
-    { email: '', role: 'staff', staffRoleId: '' },
-  ]);
+  const [drafts, setDrafts] = useState<DraftInvite[]>([{ email: '' }]);
   const [sending, setSending] = useState(false);
   const [createdLinks, setCreatedLinks] = useState<{ email: string; url: string }[]>([]);
-
-  // Load positions so users can pick one per row.
-  const [departments, setDepartments] = useState<Department[]>([]);
-  const [staffRoles, setStaffRoles] = useState<StaffRole[]>([]);
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const [d, r] = await Promise.all([listDepartments(), listStaffRoles()]);
-        if (cancelled) return;
-        setDepartments(d);
-        setStaffRoles(r);
-      } catch (err) {
-        if (!cancelled) {
-          toast.error(err instanceof Error ? err.message : 'Could not load positions.');
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const positionOptions = useMemo(() => {
-    const byDept = new Map<string, StaffRole[]>();
-    for (const r of staffRoles) {
-      const arr = byDept.get(r.department_id) ?? [];
-      arr.push(r);
-      byDept.set(r.department_id, arr);
-    }
-    const opts: { value: string; label: string; detail?: string }[] = [];
-    for (const d of departments) {
-      const rs = (byDept.get(d.id) ?? []).slice().sort((a, b) => a.sort_order - b.sort_order);
-      for (const r of rs) {
-        opts.push({ value: r.id, label: r.name, detail: d.name });
-      }
-    }
-    return opts;
-  }, [departments, staffRoles]);
 
   function updateDraft(i: number, patch: Partial<DraftInvite>) {
     setDrafts((ds) => ds.map((d, idx) => (idx === i ? { ...d, ...patch } : d)));
   }
 
   function addRow() {
-    setDrafts((ds) => [...ds, { email: '', role: 'staff', staffRoleId: '' }]);
+    setDrafts((ds) => [...ds, { email: '' }]);
   }
 
   function removeRow(i: number) {
@@ -625,25 +577,12 @@ function InvitesStep({
       return;
     }
 
-    // Validate before any RPC calls.
-    const missingPosition = validDrafts.find(
-      (d) => d.role === 'staff' && !d.staffRoleId,
-    );
-    if (missingPosition) {
-      toast.error(`Pick a position for ${missingPosition.email}.`);
-      return;
-    }
-
     setSending(true);
     try {
       const created: { email: string; url: string }[] = [];
       for (const d of validDrafts) {
-        const inv = await createInvite(
-          agency.id,
-          d.email,
-          d.role,
-          d.role === 'staff' ? d.staffRoleId : null,
-        );
+        // Everyone joins as an admin — same access as the rest of the team.
+        const inv = await createInvite(agency.id, d.email, 'admin', null);
         created.push({ email: d.email, url: buildInviteUrl(inv.token) });
       }
       setCreatedLinks(created);
@@ -723,8 +662,9 @@ function InvitesStep({
         Bring your team in.
       </h1>
       <p className="mt-4 max-w-xl text-sm leading-relaxed text-neutral-400">
-        Optional. Add emails, choose a role, and we&rsquo;ll generate a link
-        for each one. You can also do this later in Settings.
+        Optional. Add emails and we&rsquo;ll generate a link for each one.
+        Everyone joins as an admin with full access. You can also do this
+        later in Settings.
       </p>
 
       <div className="mt-8 flex flex-col gap-2">
@@ -738,52 +678,17 @@ function InvitesStep({
                 placeholder="teammate@example.com"
                 className="flex-1 border border-neutral-800 bg-transparent px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-600 focus:border-neutral-500 focus:outline-none"
               />
-              <div className="flex gap-2">
-                {(['staff', 'admin'] as AgencyRole[]).map((r) => (
-                  <button
-                    key={r}
-                    type="button"
-                    onClick={() =>
-                      updateDraft(i, { role: r, ...(r === 'admin' ? { staffRoleId: '' } : {}) })
-                    }
-                    className={
-                      'border px-3 py-2 text-[11px] uppercase tracking-widest transition-colors ' +
-                      (d.role === r
-                        ? 'border-neutral-50 bg-neutral-50 text-neutral-950'
-                        : 'border-neutral-800 bg-transparent text-neutral-300 hover:border-neutral-500')
-                    }
-                  >
-                    {r}
-                  </button>
-                ))}
-                {drafts.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => removeRow(i)}
-                    className="border border-neutral-800 px-2 py-2 text-[11px] uppercase tracking-widest text-neutral-500 transition-colors hover:border-neutral-600 hover:text-neutral-300"
-                    aria-label="Remove"
-                  >
-                    &times;
-                  </button>
-                )}
-              </div>
+              {drafts.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => removeRow(i)}
+                  className="self-start border border-neutral-800 px-2 py-2 text-[11px] uppercase tracking-widest text-neutral-500 transition-colors hover:border-neutral-600 hover:text-neutral-300"
+                  aria-label="Remove"
+                >
+                  &times;
+                </button>
+              )}
             </div>
-            {d.role === 'staff' && (
-              <div className="flex flex-col gap-2 md:flex-row md:items-center">
-                <span className="text-[10px] uppercase tracking-widest text-neutral-500 md:w-20">
-                  Position
-                </span>
-                <div className="flex-1">
-                  <Select
-                    value={d.staffRoleId}
-                    onChange={(v) => updateDraft(i, { staffRoleId: v })}
-                    options={positionOptions}
-                    placeholder={positionOptions.length === 0 ? 'No positions yet' : 'Pick a position'}
-                    disabled={positionOptions.length === 0}
-                  />
-                </div>
-              </div>
-            )}
           </div>
         ))}
         <button

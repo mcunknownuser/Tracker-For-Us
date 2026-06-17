@@ -23,7 +23,6 @@ import {
 } from '../lib/invites';
 import { type Department, listDepartments } from '../lib/departments';
 import { type StaffRole, listStaffRoles } from '../lib/staffRoles';
-import { Select } from './Select';
 import { toast } from '../lib/toast';
 import { confirm } from '../lib/confirm';
 
@@ -34,8 +33,6 @@ export function InvitePanel({ agencyId }: { agencyId: string }) {
   const [error, setError] = useState<string | null>(null);
 
   const [email, setEmail] = useState('');
-  const [role, setRole] = useState<AgencyRole>('staff');
-  const [staffRoleId, setStaffRoleId] = useState<string>('');
   const [sending, setSending] = useState(false);
 
   // Look up table: role_id -> "Department · Role". Used everywhere we
@@ -75,24 +72,6 @@ export function InvitePanel({ agencyId }: { agencyId: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agencyId]);
 
-  // Position options, grouped visually by department.
-  const positionOptions = useMemo(() => {
-    const byDept = new Map<string, StaffRole[]>();
-    for (const r of staffRoles) {
-      const arr = byDept.get(r.department_id) ?? [];
-      arr.push(r);
-      byDept.set(r.department_id, arr);
-    }
-    const opts: { value: string; label: string; detail?: string }[] = [];
-    for (const d of departments) {
-      const rs = (byDept.get(d.id) ?? []).slice().sort((a, b) => a.sort_order - b.sort_order);
-      for (const r of rs) {
-        opts.push({ value: r.id, label: r.name, detail: d.name });
-      }
-    }
-    return opts;
-  }, [departments, staffRoles]);
-
   async function handleInvite(e: React.FormEvent) {
     e.preventDefault();
     if (sending) return;
@@ -101,20 +80,12 @@ export function InvitePanel({ agencyId }: { agencyId: string }) {
       toast.error('Enter an email.');
       return;
     }
-    if (role === 'staff' && !staffRoleId) {
-      toast.error('Pick a position for this staff member.');
-      return;
-    }
     setSending(true);
     try {
-      const created = await createInvite(
-        agencyId,
-        trimmed,
-        role,
-        role === 'staff' ? staffRoleId : null,
-      );
+      // Everyone is invited as an admin so they get the same access as the
+      // rest of the team. No staff role / position to assign.
+      const created = await createInvite(agencyId, trimmed, 'admin', null);
       setEmail('');
-      setStaffRoleId('');
       // Reload BEFORE the clipboard attempt so the new invite is visible
       // even if the auto-copy is blocked by the browser.
       await reload();
@@ -209,49 +180,11 @@ export function InvitePanel({ agencyId }: { agencyId: string }) {
             <div className="mb-2 text-[10px] uppercase tracking-widest text-neutral-500">
               Role
             </div>
-            <div className="flex gap-2">
-              {(['staff', 'admin'] as AgencyRole[]).map((r) => (
-                <button
-                  key={r}
-                  type="button"
-                  onClick={() => {
-                    setRole(r);
-                    if (r === 'admin') setStaffRoleId('');
-                  }}
-                  className={
-                    'border px-3 py-2 text-[11px] uppercase tracking-widest transition-colors ' +
-                    (role === r
-                      ? 'border-neutral-50 bg-neutral-50 text-neutral-950'
-                      : 'border-neutral-800 bg-transparent text-neutral-300 hover:border-neutral-500')
-                  }
-                >
-                  {r}
-                </button>
-              ))}
+            <div className="border border-neutral-50 bg-neutral-50 px-3 py-2 text-center text-[11px] uppercase tracking-widest text-neutral-950">
+              Admin
             </div>
           </div>
         </div>
-
-        {/* Position picker — only for staff invites. */}
-        {role === 'staff' && (
-          <div>
-            <div className="mb-2 text-[10px] uppercase tracking-widest text-neutral-500">
-              Position
-            </div>
-            {positionOptions.length === 0 ? (
-              <div className="border border-dashed border-neutral-800 px-3 py-2 text-xs text-neutral-500">
-                No positions defined. Add roles in Settings &rarr; Roles first.
-              </div>
-            ) : (
-              <Select
-                value={staffRoleId}
-                onChange={setStaffRoleId}
-                options={positionOptions}
-                placeholder="Pick a position"
-              />
-            )}
-          </div>
-        )}
 
         <div className="flex justify-end">
           <button

@@ -64,7 +64,7 @@ export function Sidebar({ agency, mobileOpen = false, onMobileClose }: SidebarPr
     <>
       <div className="flex items-center justify-between px-6 py-7">
         <NavLink to="/" className="font-serif text-2xl font-bold tracking-tight text-neutral-50">
-          VoltrisAi
+          Traccr
         </NavLink>
         {/* Mobile-only close affordance */}
         <button
@@ -86,10 +86,14 @@ export function Sidebar({ agency, mobileOpen = false, onMobileClose }: SidebarPr
             path={ROUTES.dashboard}
             label="Dashboard"
             active={location.pathname === '/'}
+            tourId="dashboard"
           />
 
           {departments.length > 0 && (
-            <li className="mt-3 px-3 pb-1 text-[10px] uppercase tracking-editorial text-neutral-700">
+            <li
+              data-tour="departments"
+              className="mt-3 px-3 pb-1 text-[10px] uppercase tracking-editorial text-neutral-700"
+            >
               Departments
             </li>
           )}
@@ -118,6 +122,7 @@ export function Sidebar({ agency, mobileOpen = false, onMobileClose }: SidebarPr
                 path={item.path}
                 label={item.label}
                 active={isActive}
+                tourId={item.label.toLowerCase()}
               />
             );
           })}
@@ -133,6 +138,7 @@ export function Sidebar({ agency, mobileOpen = false, onMobileClose }: SidebarPr
             path={ROUTES.settings}
             label="Settings"
             active={location.pathname === ROUTES.settings}
+            tourId="settings"
           />
         </ul>
       </nav>
@@ -184,15 +190,18 @@ function NavItem({
   path,
   label,
   active,
+  tourId,
 }: {
   path: string;
   label: string;
   active: boolean;
+  tourId?: string;
 }) {
   return (
     <li>
       <NavLink
         to={path}
+        data-tour={tourId}
         className={
           'block px-3 py-2.5 text-[11px] font-medium uppercase tracking-widest transition-colors ' +
           (active

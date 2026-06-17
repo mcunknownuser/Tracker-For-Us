@@ -224,7 +224,7 @@ function Splash() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-neutral-950">
       <div className="font-serif text-3xl font-semibold tracking-tight text-neutral-100">
-        VoltrisAi
+        Traccr
       </div>
     </div>
   );

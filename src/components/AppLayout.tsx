@@ -11,6 +11,7 @@ import { useEffect, useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { GoToPalette } from './GoToPalette';
+import { SetupGuide } from './SetupGuide';
 import type { Agency } from '../lib/agency';
 
 type AppLayoutProps = {
@@ -46,7 +47,7 @@ export function AppLayout({ agency }: AppLayoutProps) {
         onMobileClose={() => setMobileNavOpen(false)}
       />
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col bg-[#050505]">
         {/* Mobile top bar — hidden on md+ since the sidebar is permanently
             visible there. Holds the hamburger, wordmark, and search. */}
         <header className="flex items-center justify-between border-b border-neutral-900 bg-neutral-950 px-4 py-3 md:hidden">
@@ -63,7 +64,7 @@ export function AppLayout({ agency }: AppLayoutProps) {
             </svg>
           </button>
           <span className="font-serif text-lg font-bold tracking-tight text-neutral-50">
-            VoltrisAi
+            Traccr
           </span>
           <button
             type="button"
@@ -110,6 +111,8 @@ export function AppLayout({ agency }: AppLayoutProps) {
         onClose={() => setPaletteOpen(false)}
         agencyId={agency.id}
       />
+
+      <SetupGuide agency={agency} />
     </div>
   );
 }

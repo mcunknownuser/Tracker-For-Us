@@ -2,6 +2,13 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Every numeric value in the app is tagged `tabular-nums`. Render those in
+   Fraunces site-wide. Declared after @tailwind utilities so it wins the
+   font-family tie against `font-serif` on the big stat numbers. */
+.tabular-nums {
+  font-family: 'Fraunces', Georgia, serif;
+}
+
 html,
 body,
 #root {
@@ -52,6 +59,22 @@ html {
   width: 0 !important;
   height: 0 !important;
   background: transparent !important;
+}
+
+button.premium-card:hover, .premium-card.interactive:hover {
+  background: #1C1C1C;
+  border: 1px solid #333333;
+}
+
+/* Primary Stat Card: Horizontal fade from grey to black (Matte finish) */
+.premium-card-primary {
+  background: linear-gradient(90deg, #121213 0%, #050505 100%) !important;
+  border: 1px solid #19191a !important;
+}
+
+button.premium-card-primary:hover, .premium-card-primary.interactive:hover {
+  background: linear-gradient(90deg, #161617 0%, #070708 100%) !important;
+  border-color: #212123 !important;
 }
 
 /* IE/legacy Edge fallback. Harmless on other browsers. */

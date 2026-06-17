@@ -6,6 +6,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { PageHeader } from '../components/PageHeader';
 import { Modal } from '../components/Modal';
+import { MemberEarningsModal, type ActivitySection } from '../components/MemberEarningsModal';
+import { PaymentLedgerModal } from '../components/PaymentLedgerModal';
+import { StatementExportModal, type ExportMember } from '../components/StatementExportModal';
+import {
+  monthsInRange,
+  type Statement,
+  type StatementLine,
+  type StatementSection,
+} from '../lib/statements';
 import { Button, Field, Label, TextLink } from '../components/FormControls';
 import { Select } from '../components/Select';
 import { DatePicker } from '../components/DatePicker';
@@ -79,6 +88,9 @@ export function Reddit({
   const [payingVA, setPayingVA] = useState<{ va: TeamMember; prefillCents?: number } | null>(null);
   const [openStat, setOpenStat] = useState<RedditStatKey | null>(null);
   const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
+  const [activityVA, setActivityVA] = useState<VASummary | null>(null);
+  const [ledgerMember, setLedgerMember] = useState<TeamMember | null>(null);
+  const [exporting, setExporting] = useState(false);
   // Whether this page is the agency's first marketing department. The
   // dashboard uses that dept to absorb income from soft-deleted reddit
   // accounts (we have no other dept to attribute them to). The same
@@ -180,6 +192,66 @@ export function Reddit({
     return buildVASummaries(accounts, validIncomes, members, vaPayments, monthKey);
   }, [accounts, validIncomes, members, payments, monthKey]);
 
+  // Selectable people for export = VAs with at least one Reddit account.
+  const exportMembers: ExportMember[] = vaSummaries.map((v) => ({
+    id: v.member.id,
+    name: v.member.name,
+    roleLabel: v.member.role_label ?? payStructureLabel(v.member.pay_structure),
+  }));
+
+  // Build per-VA statements over a month range (sums monthly VA summaries).
+  async function buildRedditStatements(ids: string[], from: string, to: string): Promise<Statement[]> {
+    const idSet = new Set(ids);
+    const accts = await listAllAccountsIncludingDeleted();
+    const labelById = new Map(accts.map((a) => [a.id, a.label]));
+    const memberByAccount = new Map(
+      accts.filter((a) => a.team_member_id).map((a) => [a.id, a.team_member_id as string]),
+    );
+    type Acc = { income: number; earned: number; paid: number; incomeItems: StatementLine[]; payItems: StatementLine[] };
+    const acc = new Map<string, Acc>();
+    for (const id of ids) acc.set(id, { income: 0, earned: 0, paid: 0, incomeItems: [], payItems: [] });
+    const months = monthsInRange(from, to);
+    for (const mk of months) {
+      const [incomes, pays] = await Promise.all([listIncomeForMonth(mk), listPayments(mk)]);
+      for (const v of buildVASummaries(accts, incomes, members, pays, mk)) {
+        const a = acc.get(v.member.id);
+        if (!a) continue;
+        a.income += v.incomeCents;
+        a.earned += v.earnedCents;
+        a.paid += v.paidCents;
+      }
+      for (const i of incomes) {
+        const mid = memberByAccount.get(i.account_id);
+        if (mid && idSet.has(mid)) acc.get(mid)!.incomeItems.push({ date: i.month_start, label: labelById.get(i.account_id) ?? 'Account', amountCents: i.amount_cents });
+      }
+      for (const p of pays) if (idSet.has(p.team_member_id)) acc.get(p.team_member_id)!.payItems.push({ date: p.paid_on, label: p.note ?? 'Payment', amountCents: p.amount_cents });
+    }
+    const pct = (r: number) => `${+((r ?? 0) * 100).toFixed(2)}%`;
+    const out: Statement[] = [];
+    for (const id of ids) {
+      const m = members.find((mm) => mm.id === id);
+      const a = acc.get(id);
+      if (!m || !a) continue;
+      const basisLine =
+        m.pay_structure === 'flat'
+          ? `${formatCents(m.flat_amount_cents ?? 0)} every ${m.flat_period_days ?? 0} days · ${months.length} month${months.length === 1 ? '' : 's'}`
+          : `${formatCents(a.income)} account income × ${pct(m.rate ?? 0)}`;
+      const sections: StatementSection[] = [];
+      if (a.incomeItems.length) sections.push({ title: 'Account income', items: a.incomeItems });
+      if (a.payItems.length) sections.push({ title: 'Payments', items: a.payItems });
+      out.push({
+        memberName: m.name,
+        roleLabel: m.role_label ?? payStructureLabel(m.pay_structure),
+        basisLine,
+        earnedCents: a.earned,
+        paidCents: a.paid,
+        owedCents: Math.max(0, a.earned - a.paid),
+        sections,
+      });
+    }
+    return out;
+  }
+
   // Per-VA lookups: monthly cost (earned) and outstanding owed for the
   // VA who owns each account. Same value shown on every card that VA owns.
   const vaInfoByMemberId = useMemo(() => {
@@ -207,27 +279,37 @@ export function Reddit({
   }, [accounts, validIncomes, vaSummaries]);
 
   return (
-    <div className="mx-auto max-w-6xl">
-      <PageHeader
-        eyebrow={departmentName ? 'Department · Marketing' : 'Reddit marketing'}
-        title={departmentName ? `${departmentName}.` : 'Reddit.'}
-        subtitle="Accounts, monthly income, and payouts to your Reddit VAs."
-        actions={
-          <button
-            onClick={() => setCreatingAccount(true)}
-            disabled={loading}
-            className="bg-neutral-50 px-4 py-3 text-[11px] font-medium uppercase tracking-widest text-neutral-950 transition-colors hover:bg-neutral-300 disabled:opacity-40"
-          >
-            Add account
-          </button>
-        }
-      />
+    <div className="dashboard-spotlight pb-24 text-neutral-100">
+      <div className="mx-auto max-w-6xl px-8 pt-8">
+        <PageHeader
+          eyebrow={departmentName ? 'Department · Marketing' : 'Reddit marketing'}
+          title={departmentName ? `${departmentName}.` : 'Reddit.'}
+          subtitle="Accounts, monthly income, and payouts to your Reddit VAs."
+          actions={
+            <>
+              <button
+                onClick={() => setExporting(true)}
+                disabled={loading}
+                className="border border-white/10 px-4 py-3 text-[11px] font-medium uppercase tracking-widest text-neutral-200 transition-colors hover:border-white/20 disabled:opacity-40"
+              >
+                Export
+              </button>
+              <button
+                onClick={() => setCreatingAccount(true)}
+                disabled={loading}
+                className="bg-neutral-50 px-4 py-3 text-[11px] font-medium uppercase tracking-widest text-neutral-950 transition-colors hover:bg-neutral-300 disabled:opacity-40"
+              >
+                Add account
+              </button>
+            </>
+          }
+        />
 
-      {error && (
-        <div className="mb-6 border border-red-900/60 bg-red-950/30 p-4 text-sm text-red-200">
-          {error.message}
-        </div>
-      )}
+        {error && (
+          <div className="mb-6 premium-card !border-red-900/60 !bg-red-950/30 p-4 text-sm text-red-200">
+            {error.message}
+          </div>
+        )}
 
       <MonthPicker monthKey={monthKey} onChange={setMonthKey} />
 
@@ -266,6 +348,7 @@ export function Reddit({
           <VASection
             summaries={vaSummaries}
             onPayVA={(va) => setPayingVA({ va })}
+            onOpen={(v) => setActivityVA(v)}
           />
         </>
       )}
@@ -336,6 +419,42 @@ export function Reddit({
           }}
         />
       )}
+
+      {activityVA && (
+        <VAActivityModal
+          va={activityVA}
+          monthLabel={monthLongLabel(monthKey)}
+          incomes={validIncomes}
+          payments={payments}
+          onClose={() => setActivityVA(null)}
+          onEditPayment={(p) => {
+            setActivityVA(null);
+            setEditingPayment(p);
+          }}
+          onViewHistory={() => {
+            const m = activityVA.member;
+            setActivityVA(null);
+            setLedgerMember(m);
+          }}
+        />
+      )}
+
+      {ledgerMember && (
+        <PaymentLedgerModal
+          memberId={ledgerMember.id}
+          memberName={ledgerMember.name}
+          onClose={() => setLedgerMember(null)}
+        />
+      )}
+
+      {exporting && (
+        <StatementExportModal
+          members={exportMembers}
+          onBuild={buildRedditStatements}
+          onClose={() => setExporting(false)}
+        />
+      )}
+      </div>
     </div>
   );
 }
@@ -402,24 +521,28 @@ function TopStats({
   return (
     <div className="mb-12 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
       <Stat
+        tone="revenue"
         label="Account income"
         value={formatCents(stats.accountIncome)}
         hint={`${stats.accountsCount} account${stats.accountsCount === 1 ? '' : 's'}`}
         onClick={() => onOpen('account-income')}
       />
       <Stat
+        tone="cost"
         label="Employee cost"
         value={formatCents(stats.employeeCost)}
         hint="What VAs accrue this month"
         onClick={() => onOpen('employee-cost')}
       />
       <Stat
+        tone="key"
         label="Net profit"
         value={formatCents(stats.netProfit)}
         hint="Income − cost"
         onClick={() => onOpen('net-profit')}
       />
       <Stat
+        tone="warn"
         label="Outstanding payment to employees"
         value={formatCents(stats.owed)}
         hint={`${formatCents(stats.paid)} paid this month`}
@@ -429,30 +552,47 @@ function TopStats({
   );
 }
 
+type StatTone = 'revenue' | 'cost' | 'key' | 'warn' | 'dept' | 'neutral';
+
+const TONE_STYLES: Record<StatTone, { accent: string; label: string; dot: string }> = {
+  revenue: { accent: 'before:bg-[#b8956a]', label: 'text-[#b8956a]', dot: 'bg-[#b8956a]' },
+  cost:    { accent: 'before:bg-[#b8857a]', label: 'text-[#b8857a]', dot: 'bg-[#b8857a]' },
+  key:     { accent: 'before:bg-[#c8b896]', label: 'text-[#c8b896]', dot: 'bg-[#c8b896]' },
+  warn:    { accent: 'before:bg-[#b8754d]', label: 'text-[#b8754d]', dot: 'bg-[#b8754d]' },
+  dept:    { accent: 'before:bg-[#a89890]', label: 'text-[#a89890]', dot: 'bg-[#a89890]' },
+  neutral: { accent: 'before:bg-[#7c706a]', label: 'text-[#7c706a]', dot: 'bg-[#7c706a]' },
+};
+
 function Stat({
   label,
   value,
   hint,
+  tone = 'neutral',
   onClick,
 }: {
   label: string;
   value: string;
   hint: string;
+  tone?: StatTone;
   onClick: () => void;
 }) {
+  const t = TONE_STYLES[tone];
+  const baseClasses =
+    'relative text-left transition-all premium-card-primary p-7' +
+    ' focus:outline-none focus:ring-2 focus:ring-white/20';
+
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="border border-neutral-800 bg-neutral-950 p-7 text-left transition-colors hover:border-neutral-700 hover:bg-neutral-900"
-    >
-      <div className="text-[10px] font-medium uppercase tracking-editorial text-neutral-500">
-        {label}
+    <button type="button" onClick={onClick} className={baseClasses}>
+      <div className="flex items-center gap-2">
+        <span aria-hidden className={'inline-block h-2 w-2 ' + t.dot} />
+        <div className={'text-[11px] font-bold uppercase tracking-editorial ' + t.label}>
+          {label}
+        </div>
       </div>
       <div className="mt-3 font-serif text-4xl font-semibold tabular-nums tracking-tight text-neutral-50">
         {value}
       </div>
-      <div className="mt-2 text-[10px] uppercase tracking-widest text-neutral-600">
+      <div className="mt-2 text-[10px] font-medium uppercase tracking-widest text-neutral-500">
         {hint}
       </div>
     </button>
@@ -524,8 +664,8 @@ function ArchivedAccountsSection({
         </span>
       </div>
 
-      <div className="border border-neutral-800 bg-neutral-950">
-        <div className="divide-y divide-neutral-900">
+      <div className="premium-card">
+        <div className="divide-y divide-white/5">
           {rows.map((r) => {
             const acct = accountById.get(r.account_id);
             const vaName = acct?.team_member_id
@@ -668,7 +808,7 @@ function AccountCard({
     profitCents < 0 ? 'text-rose-400' : profitCents > 0 ? 'text-emerald-400' : 'text-neutral-400';
 
   return (
-    <div className="flex flex-col border border-neutral-800 bg-neutral-950 p-5">
+    <div className="flex flex-col premium-card p-5 hover:-translate-y-[2px] transition-transform">
       {/* Header */}
       <div className="flex items-baseline justify-between gap-3">
         <div>
@@ -873,9 +1013,11 @@ function InlineIncome({
 function VASection({
   summaries,
   onPayVA,
+  onOpen,
 }: {
   summaries: VASummary[];
   onPayVA: (m: TeamMember) => void;
+  onOpen: (v: VASummary) => void;
 }) {
   if (summaries.length === 0) {
     return null;
@@ -902,7 +1044,14 @@ function VASection({
               className="grid items-center gap-4 px-2"
             >
               <div>
-                <div className="font-serif text-lg text-neutral-50">{v.member.name}</div>
+                <button
+                  type="button"
+                  onClick={() => onOpen(v)}
+                  className="font-serif text-lg text-neutral-50 transition-colors hover:text-neutral-300"
+                  title={`View ${v.member.name}'s earnings breakdown`}
+                >
+                  {v.member.name}
+                </button>
                 <div className="mt-0.5 text-[10px] uppercase tracking-widest text-neutral-600">
                   {v.member.role_label ?? payStructureLabel(v.member.pay_structure)} · {formatPayLine(v.member)}
                 </div>
@@ -961,6 +1110,92 @@ function VASection({
         ))}
       </div>
     </section>
+  );
+}
+
+// Human-readable description of how a VA's earnings were derived. Flat shows
+// the prorated wage; commission/share both collapse to "% of account income"
+// on the marketing side.
+function redditBasisLine(m: TeamMember, incomeCents: number): string {
+  const pct = (r: number) => `${+((r ?? 0) * 100).toFixed(2)}%`;
+  const periods = (n: number) => (Number.isInteger(n) ? `${n}` : n.toFixed(2));
+  if (m.pay_structure === 'flat') {
+    const period = m.flat_period_days ?? 0;
+    const amount = m.flat_amount_cents ?? 0;
+    let perMonth = 0;
+    if (period > 0) {
+      if (period === 7) perMonth = 4;
+      else if (period === 14) perMonth = 2;
+      else if (period === 30) perMonth = 1;
+      else if (period >= 360) perMonth = 1 / 12;
+      else perMonth = 30 / period;
+    }
+    return `${formatCents(amount)} every ${period} days × ${periods(perMonth)} this month`;
+  }
+  return `${formatCents(incomeCents)} account income × ${pct(m.rate ?? 0)}`;
+}
+
+// Earnings drill-down for a Reddit VA: the basis math, payments, and the
+// per-account income line items that built their number.
+function VAActivityModal({
+  va,
+  monthLabel,
+  incomes,
+  payments,
+  onClose,
+  onEditPayment,
+  onViewHistory,
+}: {
+  va: VASummary;
+  monthLabel: string;
+  incomes: RedditAccountIncome[];
+  payments: Payment[];
+  onClose: () => void;
+  onEditPayment: (p: Payment) => void;
+  onViewHistory: () => void;
+}) {
+  const accountIds = new Set(va.accounts.map((a) => a.id));
+  const labelById = new Map(va.accounts.map((a) => [a.id, a.label]));
+
+  const sections: ActivitySection[] = [
+    {
+      title: 'Account income',
+      empty: 'No income recorded this month.',
+      items: incomes
+        .filter((i) => accountIds.has(i.account_id))
+        .map((i) => ({
+          id: i.id,
+          date: i.month_start,
+          amountCents: i.amount_cents,
+          note: labelById.get(i.account_id) ?? null,
+        })),
+    },
+    {
+      title: 'Payments',
+      empty: 'No payments this month.',
+      items: payments
+        .filter((p) => p.team_member_id === va.member.id)
+        .map((p) => ({
+          id: p.id,
+          date: p.paid_on,
+          amountCents: p.amount_cents,
+          note: p.note,
+          onClick: () => onEditPayment(p),
+        })),
+    },
+  ];
+
+  return (
+    <MemberEarningsModal
+      title={va.member.name}
+      eyebrow={`${monthLabel} · ${va.member.role_label ?? payStructureLabel(va.member.pay_structure)}`}
+      basisLine={redditBasisLine(va.member, va.incomeCents)}
+      earnedCents={va.earnedCents}
+      paidCents={va.paidCents}
+      sections={sections}
+      onClose={onClose}
+      onViewHistory={onViewHistory}
+    />
   );
 }
 

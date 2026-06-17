@@ -255,9 +255,9 @@ export function Settings({ scope = 'main' }: { scope?: SettingsScope } = {}) {
 
       )}
 
-      {/* Expense categories — shown in 'main' overview AND on the
-          gear-driven /settings/expenses page. */}
-      {show('main', 'expenses') && (
+      {/* Expense categories — shown only on the gear-driven
+          /settings/expenses page (not the main Settings overview). */}
+      {show('expenses') && (
       <section className="mt-14">
         <div className="mb-4 flex flex-col gap-2 border-b border-neutral-800 pb-4 md:flex-row md:items-end md:justify-between">
           <div>
@@ -295,7 +295,7 @@ export function Settings({ scope = 'main' }: { scope?: SettingsScope } = {}) {
       )}
 
       {/* Payment methods — same scope as expense categories. */}
-      {show('main', 'expenses') && (
+      {show('expenses') && (
       <section className="mt-14">
         <div className="mb-4 flex flex-col gap-2 border-b border-neutral-800 pb-4 md:flex-row md:items-end md:justify-between">
           <div>
@@ -340,18 +340,19 @@ export function Settings({ scope = 'main' }: { scope?: SettingsScope } = {}) {
       {show('main') && <AppearanceSection />}
       {show('main') && <AppUpdatesSection />}
 
-      {/* Tracking columns + CSV upload history — shown on /settings/tracking
-          (gear from the Tracking page) and also on the main Settings page. */}
-      {show('main', 'tracking') && <TrackingColumnsSection />}
+      {/* Tracking columns + CSV upload history — only on /settings/tracking
+          (gear from the Tracking page); the main Settings page stays focused
+          on agency-wide controls. */}
+      {show('tracking') && <TrackingColumnsSection />}
 
-      {show('main', 'tracking') && (
+      {show('tracking') && (
         <section className="mt-14">
           <div className="mb-4 flex items-baseline justify-between border-b border-neutral-800 pb-3">
             <h2 className="font-serif text-2xl font-semibold tracking-tight text-neutral-100">
               CSV upload history
             </h2>
             <span className="text-xs text-neutral-500">
-              Past Infloww imports. Deleting removes their snapshots only.
+              Past CSV imports. Deleting removes their snapshots only.
             </span>
           </div>
           <TrackingUploads />
@@ -871,7 +872,7 @@ function TeamSection() {
             Team &amp; invites
           </h2>
           <p className="mt-1 text-sm text-neutral-500">
-            Invite teammates to sign in to your agency. Links expire in 7 days
+            Invite admins to sign in to your agency. Links expire in 7 days
             and stop working after one use.
           </p>
         </div>
@@ -1005,7 +1006,7 @@ function ThemeTile({
             </span>
           )}
         </div>
-        <div className="mt-0.5 truncate text-xs text-neutral-500">{hint}</div>
+        <div className="mt-0.5 text-xs leading-relaxed text-neutral-500">{hint}</div>
       </div>
     </button>
   );
@@ -1210,8 +1211,8 @@ function LabelRow({
       }
     >
       <div className="min-w-0">
-        <div className="truncate text-sm text-neutral-300">{defaultLabel}</div>
-        <div className="mt-0.5 truncate text-[10px] uppercase tracking-widest text-neutral-600">
+        <div className="text-sm text-neutral-300">{defaultLabel}</div>
+        <div className="mt-0.5 text-[10px] leading-relaxed uppercase tracking-widest text-neutral-600">
           {example}
         </div>
       </div>

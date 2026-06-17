@@ -7,6 +7,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import { PageHeader } from '../components/PageHeader';
 import { Modal } from '../components/Modal';
+import { MemberEarningsModal, type ActivitySection } from '../components/MemberEarningsModal';
+import { PaymentLedgerModal } from '../components/PaymentLedgerModal';
+import { StatementExportModal, type ExportMember } from '../components/StatementExportModal';
+import {
+  monthsInRange,
+  type Statement,
+  type StatementLine,
+  type StatementSection,
+} from '../lib/statements';
 import { Button, Field, Label, TextLink } from '../components/FormControls';
 import { Select } from '../components/Select';
 import { DatePicker } from '../components/DatePicker';
@@ -24,7 +33,9 @@ import {
   type ModelWithdrawal,
   type Payment,
   type MemberSummary,
+  type EarningsBasis,
   buildSummaries,
+  earnedCentsFor,
   createSale,
   createWithdrawal,
   createPayment,
@@ -102,6 +113,8 @@ export function OFM({
   const openLog = (kind: EntryKind, prefilledMemberId?: string) =>
     setModal({ kind, prefilledMemberId });
   const [activityMember, setActivityMember] = useState<TeamMember | null>(null);
+  const [ledgerMember, setLedgerMember] = useState<TeamMember | null>(null);
+  const [exporting, setExporting] = useState(false);
   const [openStat, setOpenStat] = useState<StatKey | null>(null);
   const [editingEntry, setEditingEntry] = useState<
     | { kind: 'sale'; entry: ChatterSale }
@@ -172,6 +185,63 @@ export function OFM({
 
   const loading = members === null || summaries === null;
 
+  // Selectable people for export = this department's active members.
+  const exportMembers: ExportMember[] = (summaries ?? []).map((s) => ({
+    id: s.member.id,
+    name: s.member.name,
+    roleLabel: s.member.role_label ?? payStructureLabel(s.member.pay_structure),
+  }));
+
+  // Build per-member statements over a month range (sums monthly summaries so
+  // flat pay accrues exactly as it does everywhere else).
+  async function buildOFMStatements(ids: string[], from: string, to: string): Promise<Statement[]> {
+    const all = members ?? [];
+    const idSet = new Set(ids);
+    type Acc = { sales: number; wd: number; earned: number; paid: number; saleItems: StatementLine[]; wdItems: StatementLine[]; payItems: StatementLine[] };
+    const acc = new Map<string, Acc>();
+    for (const id of ids) acc.set(id, { sales: 0, wd: 0, earned: 0, paid: 0, saleItems: [], wdItems: [], payItems: [] });
+    const months = monthsInRange(from, to);
+    for (const mk of months) {
+      const [sales, wds, pays] = await Promise.all([listSales(mk), listWithdrawals(mk), listPayments(mk)]);
+      for (const s of buildSummaries(all, sales, wds, pays, mk)) {
+        const a = acc.get(s.member.id);
+        if (!a) continue;
+        a.sales += s.salesCents;
+        a.wd += s.withdrawalsCents;
+        a.earned += s.earnedCents;
+        a.paid += s.paidCents;
+      }
+      for (const x of sales) if (idSet.has(x.team_member_id)) acc.get(x.team_member_id)!.saleItems.push({ date: x.occurred_on, label: x.description ?? 'Sale', amountCents: x.amount_cents });
+      for (const x of wds) if (idSet.has(x.team_member_id)) acc.get(x.team_member_id)!.wdItems.push({ date: x.occurred_on, label: x.description ?? 'Withdrawal', amountCents: x.amount_cents });
+      for (const x of pays) if (idSet.has(x.team_member_id)) acc.get(x.team_member_id)!.payItems.push({ date: x.paid_on, label: x.note ?? 'Payment', amountCents: x.amount_cents });
+    }
+    const pct = (r: number) => `${+((r ?? 0) * 100).toFixed(2)}%`;
+    const out: Statement[] = [];
+    for (const id of ids) {
+      const m = all.find((mm) => mm.id === id);
+      const a = acc.get(id);
+      if (!m || !a) continue;
+      let basisLine = '';
+      if (m.pay_structure === 'commission') basisLine = `${formatCents(a.sales)} sales × ${pct(m.rate ?? 0)} commission`;
+      else if (m.pay_structure === 'share') basisLine = `${formatCents(a.wd)} withdrawals × ${pct(m.rate ?? 0)} share`;
+      else basisLine = `${formatCents(m.flat_amount_cents ?? 0)} every ${m.flat_period_days ?? 0} days · ${months.length} month${months.length === 1 ? '' : 's'}`;
+      const sections: StatementSection[] = [];
+      if (m.pay_structure === 'commission' && a.saleItems.length) sections.push({ title: 'Sales', items: a.saleItems });
+      if (m.pay_structure === 'share' && a.wdItems.length) sections.push({ title: 'Withdrawals', items: a.wdItems });
+      if (a.payItems.length) sections.push({ title: 'Payments', items: a.payItems });
+      out.push({
+        memberName: m.name,
+        roleLabel: m.role_label ?? payStructureLabel(m.pay_structure),
+        basisLine,
+        earnedCents: a.earned,
+        paidCents: a.paid,
+        owedCents: Math.max(0, a.earned - a.paid),
+        sections,
+      });
+    }
+    return out;
+  }
+
   // Aggregate totals — the 8 top-of-page stats.
   //
   // Two data sources here:
@@ -231,43 +301,51 @@ export function OFM({
   }, [summaries, sales, withdrawals]);
 
   return (
-    <div className="mx-auto max-w-6xl">
-      <PageHeader
-        eyebrow={departmentName ? 'Department · Models' : 'OnlyFans management'}
-        title={departmentName ? `${departmentName}.` : 'OFM.'}
-        subtitle="Sales, withdrawals, and payouts. Tracked per team member."
-        actions={
-          <>
-            <button
-              onClick={() => openLog('payment')}
-              disabled={loading}
-              className="border border-neutral-800 px-4 py-3 text-[11px] font-medium uppercase tracking-widest text-neutral-200 transition-colors hover:border-neutral-500 disabled:opacity-40"
-            >
-              Log payment
-            </button>
-            <button
-              onClick={() => openLog('sale')}
-              disabled={loading}
-              className="border border-neutral-800 px-4 py-3 text-[11px] font-medium uppercase tracking-widest text-neutral-200 transition-colors hover:border-neutral-500 disabled:opacity-40"
-            >
-              Log sale
-            </button>
-            <button
-              onClick={() => openLog('withdrawal')}
-              disabled={loading}
-              className="bg-neutral-50 px-4 py-3 text-[11px] font-medium uppercase tracking-widest text-neutral-950 transition-colors hover:bg-neutral-300 disabled:opacity-40"
-            >
-              Log withdrawal
-            </button>
-          </>
-        }
-      />
+    <div className="dashboard-spotlight pb-24 text-neutral-100">
+      <div className="mx-auto max-w-6xl px-8 pt-8">
+        <PageHeader
+          eyebrow={departmentName ? 'Department · Models' : 'OnlyFans management'}
+          title={departmentName ? `${departmentName}.` : 'OFM.'}
+          subtitle="Sales, withdrawals, and payouts. Tracked per team member."
+          actions={
+            <>
+              <button
+                onClick={() => setExporting(true)}
+                disabled={loading}
+                className="border border-white/10 px-4 py-3 text-[11px] font-medium uppercase tracking-widest text-neutral-200 transition-colors hover:border-white/20 disabled:opacity-40"
+              >
+                Export
+              </button>
+              <button
+                onClick={() => openLog('payment')}
+                disabled={loading}
+                className="border border-white/10 px-4 py-3 text-[11px] font-medium uppercase tracking-widest text-neutral-200 transition-colors hover:border-white/20 disabled:opacity-40"
+              >
+                Log payment
+              </button>
+              <button
+                onClick={() => openLog('sale')}
+                disabled={loading}
+                className="border border-white/10 px-4 py-3 text-[11px] font-medium uppercase tracking-widest text-neutral-200 transition-colors hover:border-white/20 disabled:opacity-40"
+              >
+                Log sale
+              </button>
+              <button
+                onClick={() => openLog('withdrawal')}
+                disabled={loading}
+                className="bg-neutral-50 px-4 py-3 text-[11px] font-medium uppercase tracking-widest text-neutral-950 transition-colors hover:bg-neutral-300 disabled:opacity-40"
+              >
+                Log withdrawal
+              </button>
+            </>
+          }
+        />
 
-      {error && (
-        <div className="mb-6 border border-red-900/60 bg-red-950/30 p-4 text-sm text-red-200">
-          {error.message}
-        </div>
-      )}
+        {error && (
+          <div className="mb-6 premium-card !border-red-900/60 !bg-red-950/30 p-4 text-sm text-red-200">
+            {error.message}
+          </div>
+        )}
 
       <MonthPicker monthKey={monthKey} onChange={setMonthKey} />
 
@@ -347,6 +425,27 @@ export function OFM({
           onEditSale={(s) => setEditingEntry({ kind: 'sale', entry: s })}
           onEditWithdrawal={(w) => setEditingEntry({ kind: 'withdrawal', entry: w })}
           onEditPayment={(p) => setEditingEntry({ kind: 'payment', entry: p })}
+          onViewHistory={() => {
+            const m = activityMember;
+            setActivityMember(null);
+            setLedgerMember(m);
+          }}
+        />
+      )}
+
+      {ledgerMember && (
+        <PaymentLedgerModal
+          memberId={ledgerMember.id}
+          memberName={ledgerMember.name}
+          onClose={() => setLedgerMember(null)}
+        />
+      )}
+
+      {exporting && (
+        <StatementExportModal
+          members={exportMembers}
+          onBuild={buildOFMStatements}
+          onClose={() => setExporting(false)}
         />
       )}
 
@@ -361,27 +460,28 @@ export function OFM({
         />
       )}
 
-      {openStat && stats && summaries && (
-        <StatDetailModal
-          statKey={openStat}
-          monthLabel={monthLongLabel(monthKey)}
-          stats={stats}
-          summaries={summaries}
-          sales={sales}
-          withdrawals={withdrawals}
-          nameById={nameById}
-          onClose={() => setOpenStat(null)}
-          onNavigate={setOpenStat}
-          onEditSale={(s) => {
-            setOpenStat(null);
-            setEditingEntry({ kind: 'sale', entry: s });
-          }}
-          onEditWithdrawal={(w) => {
-            setOpenStat(null);
-            setEditingEntry({ kind: 'withdrawal', entry: w });
-          }}
-        />
-      )}
+        {openStat && stats && summaries && (
+          <StatDetailModal
+            statKey={openStat}
+            monthLabel={monthLongLabel(monthKey)}
+            stats={stats}
+            summaries={summaries}
+            sales={sales}
+            withdrawals={withdrawals}
+            nameById={nameById}
+            onClose={() => setOpenStat(null)}
+            onNavigate={setOpenStat}
+            onEditSale={(s) => {
+              setOpenStat(null);
+              setEditingEntry({ kind: 'sale', entry: s });
+            }}
+            onEditWithdrawal={(w) => {
+              setOpenStat(null);
+              setEditingEntry({ kind: 'withdrawal', entry: w });
+            }}
+          />
+        )}
+      </div>
     </div>
   );
 }
@@ -470,6 +570,7 @@ function TopStats({
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Stat
           tier="primary"
+          tone="revenue"
           label="Gross revenue"
           value={formatCents(stats.grossRevenue)}
           hint={`${plural(withdrawalsCount, 'withdrawal')} · ${plural(salesCount, 'sale')}`}
@@ -477,6 +578,7 @@ function TopStats({
         />
         <Stat
           tier="primary"
+          tone="key"
           label="Net profit"
           value={formatCents(stats.netProfit)}
           hint={
@@ -488,6 +590,7 @@ function TopStats({
         />
         <Stat
           tier="primary"
+          tone="cost"
           label="Total payouts"
           value={formatCents(stats.totalPayouts)}
           hint={`${formatCents(stats.paid)} paid · ${formatCents(stats.owed)} owed`}
@@ -495,6 +598,7 @@ function TopStats({
         />
         <Stat
           tier="primary"
+          tone="warn"
           label="Currently owed"
           value={formatCents(stats.owed)}
           hint="Outstanding to team"
@@ -506,6 +610,7 @@ function TopStats({
       <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Stat
           tier="secondary"
+          tone="dept"
           label="Models' cut"
           value={formatCents(stats.modelsCut)}
           hint={`${plural(stats.modelCount, 'model')} · share of withdrawals`}
@@ -513,6 +618,7 @@ function TopStats({
         />
         <Stat
           tier="secondary"
+          tone="dept"
           label="Chatters' cut"
           value={formatCents(stats.chattersCut)}
           hint={`${plural(stats.chatterCount, 'chatter')} · % of sales`}
@@ -520,6 +626,7 @@ function TopStats({
         />
         <Stat
           tier="secondary"
+          tone="dept"
           label="Flat-paid"
           value={formatCents(stats.flatPay)}
           hint={plural(stats.flatCount, 'employee')}
@@ -527,6 +634,7 @@ function TopStats({
         />
         <Stat
           tier="secondary"
+          tone="neutral"
           label="Margin"
           value={`${stats.marginPct.toFixed(1)}%`}
           hint="Net profit ÷ gross revenue"
@@ -537,42 +645,54 @@ function TopStats({
   );
 }
 
+type StatTone = 'revenue' | 'cost' | 'key' | 'warn' | 'dept' | 'neutral';
+
+const TONE_STYLES: Record<StatTone, { accent: string; label: string; dot: string }> = {
+  revenue: { accent: 'before:bg-[#b8956a]', label: 'text-[#b8956a]', dot: 'bg-[#b8956a]' },
+  cost:    { accent: 'before:bg-[#b8857a]', label: 'text-[#b8857a]', dot: 'bg-[#b8857a]' },
+  key:     { accent: 'before:bg-[#c8b896]', label: 'text-[#c8b896]', dot: 'bg-[#c8b896]' },
+  warn:    { accent: 'before:bg-[#b8754d]', label: 'text-[#b8754d]', dot: 'bg-[#b8754d]' },
+  dept:    { accent: 'before:bg-[#a89890]', label: 'text-[#a89890]', dot: 'bg-[#a89890]' },
+  neutral: { accent: 'before:bg-[#7c706a]', label: 'text-[#7c706a]', dot: 'bg-[#7c706a]' },
+};
+
 function Stat({
   label,
   value,
   hint,
   tier,
+  tone = 'neutral',
   onClick,
 }: {
   label: string;
   value: string;
   hint?: string;
   tier: 'primary' | 'secondary';
+  tone?: StatTone;
   onClick: () => void;
 }) {
   const isPrimary = tier === 'primary';
+  const t = TONE_STYLES[tone];
+  const baseClasses =
+    'relative text-left transition-all ' +
+    (isPrimary 
+      ? 'premium-card-primary p-7' 
+      : 'bg-neutral-950 hover:bg-neutral-900 border border-neutral-800 p-6') +
+    ' focus:outline-none focus:ring-2 focus:ring-white/20';
+
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={
-        'group border border-neutral-800 bg-neutral-950 text-left transition-colors hover:border-neutral-700 hover:bg-neutral-900 ' +
-        (isPrimary ? 'p-7' : 'p-6')
-      }
-    >
-      <div className="text-[10px] font-medium uppercase tracking-editorial text-neutral-500">
-        {label}
+    <button type="button" onClick={onClick} className={baseClasses}>
+      <div className="flex items-center gap-2">
+        <span aria-hidden className={'inline-block h-2 w-2 ' + t.dot} />
+        <div className={'text-[11px] font-bold uppercase tracking-editorial ' + t.label}>
+          {label}
+        </div>
       </div>
-      <div
-        className={
-          'mt-3 font-serif font-semibold tabular-nums tracking-tight text-neutral-50 ' +
-          (isPrimary ? 'text-4xl' : 'text-2xl')
-        }
-      >
+      <div className={'mt-3 font-serif font-semibold tabular-nums tracking-tight text-neutral-50 ' + (isPrimary ? 'text-4xl' : 'text-2xl')}>
         {value}
       </div>
       {hint && (
-        <div className="mt-2 text-[10px] uppercase tracking-widest text-neutral-600">
+        <div className="mt-2 text-[10px] font-medium uppercase tracking-widest text-neutral-500">
           {hint}
         </div>
       )}
@@ -1051,6 +1171,23 @@ function EntryFormModal({
 // =============================================================================
 //  Member activity modal — recent sales / withdrawals / payments
 // =============================================================================
+// Human-readable description of how earnings were derived, e.g.
+// "$12,981.34 sales × 12% commission" or "$5,000.00 every 7 days × 4 this month".
+function earningsBasisLine(basis: EarningsBasis): string {
+  const pct = (rate: number) => `${+(rate * 100).toFixed(2)}%`;
+  const periods = (n: number) => (Number.isInteger(n) ? `${n}` : n.toFixed(2));
+  switch (basis.kind) {
+    case 'commission':
+      return `${formatCents(basis.grossCents)} sales × ${pct(basis.rate)} commission`;
+    case 'share':
+      return `${formatCents(basis.grossCents)} withdrawals × ${pct(basis.rate)} share`;
+    case 'flat':
+      return `${formatCents(basis.amountCents)} every ${basis.periodDays} days × ${periods(basis.periodsThisMonth)} this month`;
+    case 'none':
+      return 'No pay structure set';
+  }
+}
+
 function MemberActivityModal({
   member,
   monthLabel,
@@ -1061,6 +1198,7 @@ function MemberActivityModal({
   onEditSale,
   onEditWithdrawal,
   onEditPayment,
+  onViewHistory,
 }: {
   member: TeamMember;
   monthLabel: string;
@@ -1071,115 +1209,65 @@ function MemberActivityModal({
   onEditSale: (s: ChatterSale) => void;
   onEditWithdrawal: (w: ModelWithdrawal) => void;
   onEditPayment: (p: Payment) => void;
+  onViewHistory: () => void;
 }) {
-  const isCommission = member.pay_structure === 'commission';
-  const isShare = member.pay_structure === 'share';
+  const sections: ActivitySection[] = [];
+  if (member.pay_structure === 'commission') {
+    sections.push({
+      title: 'Sales',
+      empty: 'No sales this month.',
+      items: sales.map((s) => ({
+        id: s.id,
+        date: s.occurred_on,
+        amountCents: s.amount_cents,
+        note: s.description,
+        onClick: () => onEditSale(s),
+      })),
+    });
+  }
+  if (member.pay_structure === 'share') {
+    sections.push({
+      title: 'Withdrawals',
+      empty: 'No withdrawals this month.',
+      items: withdrawals.map((w) => ({
+        id: w.id,
+        date: w.occurred_on,
+        amountCents: w.amount_cents,
+        note: w.description,
+        onClick: () => onEditWithdrawal(w),
+      })),
+    });
+  }
+  sections.push({
+    title: 'Payments',
+    empty: 'No payments this month.',
+    items: payments.map((p) => ({
+      id: p.id,
+      date: p.paid_on,
+      amountCents: p.amount_cents,
+      note: p.note,
+      onClick: () => onEditPayment(p),
+    })),
+  });
+
+  // Recompute earnings via the shared helper so the modal reconciles exactly
+  // to the number on the summary card.
+  const salesCents = sales.reduce((s, x) => s + x.amount_cents, 0);
+  const withdrawalsCents = withdrawals.reduce((s, x) => s + x.amount_cents, 0);
+  const paidCents = payments.reduce((s, x) => s + x.amount_cents, 0);
+  const { earnedCents, basis } = earnedCentsFor(member, salesCents, withdrawalsCents);
 
   return (
-    <Modal
-      open
-      onClose={onClose}
-      eyebrow={`${monthLabel} · ${member.role_label ?? payStructureLabel(member.pay_structure)}`}
+    <MemberEarningsModal
       title={member.name}
-      maxWidth="max-w-xl"
-    >
-      {isCommission && (
-        <ActivityList
-          title="Sales"
-          empty="No sales this month."
-          items={sales.map((s) => ({
-            id: s.id,
-            date: s.occurred_on,
-            amountCents: s.amount_cents,
-            note: s.description,
-            onClick: () => onEditSale(s),
-          }))}
-        />
-      )}
-
-      {isShare && (
-        <ActivityList
-          title="Withdrawals"
-          empty="No withdrawals this month."
-          items={withdrawals.map((w) => ({
-            id: w.id,
-            date: w.occurred_on,
-            amountCents: w.amount_cents,
-            note: w.description,
-            onClick: () => onEditWithdrawal(w),
-          }))}
-        />
-      )}
-
-      <ActivityList
-        title="Payments"
-        empty="No payments this month."
-        items={payments.map((p) => ({
-          id: p.id,
-          date: p.paid_on,
-          amountCents: p.amount_cents,
-          note: p.note,
-          onClick: () => onEditPayment(p),
-        }))}
-      />
-    </Modal>
-  );
-}
-
-function ActivityList({
-  title,
-  empty,
-  items,
-}: {
-  title: string;
-  empty: string;
-  items: {
-    id: string;
-    date: string;
-    amountCents: number;
-    note: string | null;
-    onClick: () => void;
-  }[];
-}) {
-  const total = items.reduce((s, i) => s + i.amountCents, 0);
-  return (
-    <section className="mb-8 last:mb-0">
-      <div className="mb-3 flex items-baseline justify-between border-b border-neutral-900 pb-2">
-        <div className="flex items-baseline gap-3">
-          <h3 className="font-serif text-lg font-medium tracking-tight text-neutral-100">
-            {title}
-          </h3>
-          <span className="text-[10px] font-medium uppercase tracking-editorial text-neutral-600">
-            {items.length}
-          </span>
-        </div>
-        <span className="text-sm text-neutral-300">{formatCents(total)}</span>
-      </div>
-      {items.length === 0 ? (
-        <div className="flex h-16 items-center justify-center border border-dashed border-neutral-800 text-[10px] uppercase tracking-widest text-neutral-600">
-          {empty}
-        </div>
-      ) : (
-        <div className="divide-y divide-neutral-900">
-          {items.map((i) => (
-            <button
-              key={i.id}
-              type="button"
-              onClick={i.onClick}
-              className="grid w-full grid-cols-[auto_1fr_auto] items-baseline gap-4 py-3 text-left transition-colors hover:bg-neutral-900"
-            >
-              <div className="text-[10px] uppercase tracking-widest text-neutral-500">
-                {shortDate(i.date)}
-              </div>
-              <div className="text-sm text-neutral-300">{i.note ?? ''}</div>
-              <div className="text-right text-sm tabular-nums text-neutral-100">
-                {formatCents(i.amountCents)}
-              </div>
-            </button>
-          ))}
-        </div>
-      )}
-    </section>
+      eyebrow={`${monthLabel} · ${member.role_label ?? payStructureLabel(member.pay_structure)}`}
+      basisLine={earningsBasisLine(basis)}
+      earnedCents={earnedCents}
+      paidCents={paidCents}
+      sections={sections}
+      onClose={onClose}
+      onViewHistory={onViewHistory}
+    />
   );
 }
 

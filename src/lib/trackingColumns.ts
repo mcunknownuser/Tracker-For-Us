@@ -35,7 +35,7 @@ export type ColumnDef = {
 // Order also defines the table column order. Tracking-link name is always
 // visible and not toggleable, so it's not in this list.
 export const TRACKING_COLUMNS: ColumnDef[] = [
-  { key: 'date',      label: 'Date',       hint: 'When the link was created in Infloww' },
+  { key: 'date',      label: 'Date',       hint: 'When the link was created'            },
   { key: 'clicks',    label: 'Clicks',     hint: 'Δ since previous upload'              },
   { key: 'subs',      label: 'Subs',       hint: 'Δ since previous upload'              },
   { key: 'cvr',       label: 'CVR',        hint: 'Subscription conversion rate'          },
@@ -50,8 +50,8 @@ export const TRACKING_COLUMNS: ColumnDef[] = [
   { key: 'aeps',      label: 'AEPS',       hint: 'Avg earnings per spending fan'         },
   { key: 'roi',       label: 'ROI',        hint: 'Return on investment'                  },
   { key: 'source',    label: 'Source',     hint: 'Platform tag (Reddit, Twitter, …)'     },
-  { key: 'tag',       label: 'Tag',        hint: 'Infloww tag field'                     },
-  { key: 'list',      label: 'List',       hint: 'Infloww list grouping'                 },
+  { key: 'tag',       label: 'Tag',        hint: 'Tag field from your tracking tool'      },
+  { key: 'list',      label: 'List',       hint: 'List grouping from your tracking tool'  },
 ];
 
 const PREF_KEY = 'tracking.visibleColumns';

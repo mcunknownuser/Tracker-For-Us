@@ -848,11 +848,12 @@ function StatCard({
   // (instead of the old 1px-gap-with-background trick) this gives each
   // metric its own clearly framed box.
   const baseClasses =
-    'relative bg-neutral-950 text-left transition-colors hover:bg-neutral-900 ' +
-    'border border-neutral-800 ' +
-    'before:absolute before:left-0 before:top-0 before:h-full before:w-[3px] ' +
-    t.accent + ' ' +
-    (isPrimary ? 'p-7 pl-8' : 'p-6 pl-7');
+    'relative text-left transition-all ' +
+    (isPrimary 
+      ? 'premium-card-primary p-7 pl-8' 
+      : 'bg-neutral-950 hover:bg-neutral-900 border border-neutral-800 p-6 pl-7') +
+    ' before:absolute before:left-0 before:top-0 before:h-full before:w-[3px] ' +
+    t.accent;
   const content = (
     <>
       <div className="flex items-center gap-2">
@@ -924,7 +925,7 @@ function RevenueChart({
           />
         </div>
       ) : (
-        <div className="h-56 w-full">
+        <div className="h-72 w-full">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={data} margin={{ top: 8, right: 8, left: 8, bottom: 8 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#262626" />
@@ -979,8 +980,14 @@ function OutstandingList({
   );
   const total = useMemo(() => rows.reduce((n, r) => n + r.owedCents, 0), [rows]);
 
+  // Drive the "Mark paid" reveal from JS hover state rather than CSS :hover.
+  // Safari can leave :hover stuck on rows the pointer passed over (and a
+  // clicked button keeps :focus), which left buttons visible after the mouse
+  // left. onMouseLeave on the list container guarantees a reset.
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+
   return (
-    <section className="border border-neutral-800 bg-neutral-950 p-5">
+    <section className="flex flex-col border border-neutral-800 bg-neutral-950 p-5">
       <div className="mb-3 flex items-baseline justify-between border-b border-neutral-900 pb-2">
         <h3 className="font-serif text-base font-medium tracking-tight text-neutral-100">
           Outstanding
@@ -994,11 +1001,20 @@ function OutstandingList({
           message="When a team member is owed money, they'll appear here with a one-click pay button."
         />
       ) : (
-        <div className="max-h-72 overflow-y-auto divide-y divide-neutral-900">
+        // The scroll list is absolutely positioned so it fills the card's
+        // height (driven by the Revenue chart next to it) without its own
+        // content forcing the row taller. It scrolls when there are more
+        // members than fit.
+        <div className="relative min-h-0 lg:flex-1">
+        <div
+          className="max-h-72 overflow-y-auto divide-y divide-neutral-900 lg:absolute lg:inset-0 lg:max-h-none"
+          onMouseLeave={() => setHoveredId(null)}
+        >
           {rows.map((s) => (
             <div
               key={s.member.id}
-              className="group flex items-center justify-between gap-3 py-2.5"
+              onMouseEnter={() => setHoveredId(s.member.id)}
+              className="flex items-center justify-between gap-3 py-2.5"
             >
               <div className="min-w-0">
                 <div className="text-sm text-neutral-100">{s.member.name}</div>
@@ -1015,13 +1031,17 @@ function OutstandingList({
                   onClick={() => void onMarkPaid(s.member, s.owedCents)}
                   title={`Mark as paid (records a ${formatCents(s.owedCents)} payment)`}
                   aria-label={`Mark ${s.member.name} as paid`}
-                  className="shrink-0 border border-neutral-800 px-2 py-1 text-[10px] uppercase tracking-widest text-neutral-300 opacity-0 transition-all hover:border-neutral-400 hover:bg-neutral-900 hover:text-neutral-50 group-hover:opacity-100 focus:opacity-100"
+                  className={
+                    'shrink-0 border border-neutral-800 px-2 py-1 text-[10px] uppercase tracking-widest text-neutral-300 transition-colors hover:border-neutral-400 hover:bg-neutral-900 hover:text-neutral-50 ' +
+                    (hoveredId === s.member.id ? 'visible' : 'invisible')
+                  }
                 >
                   Mark paid
                 </button>
               </div>
             </div>
           ))}
+        </div>
         </div>
       )}
     </section>
@@ -1209,7 +1229,7 @@ function RecentActivity({
   };
 
   return (
-    <section className="border border-neutral-800 bg-neutral-950 p-5">
+    <section className="flex flex-col border border-neutral-800 bg-neutral-950 p-5">
       <div className="mb-3 flex items-baseline justify-between border-b border-neutral-900 pb-2">
         <h3 className="font-serif text-base font-medium tracking-tight text-neutral-100">
           Recent activity
@@ -1225,7 +1245,11 @@ function RecentActivity({
           message="As your team logs sales, withdrawals, payments, and expenses, the newest will show up here."
         />
       ) : (
-        <div className="max-h-96 overflow-y-auto divide-y divide-neutral-900">
+        // Absolutely-positioned scroll list so the activity feed fills the
+        // card height set by Top performers next to it — and stops where that
+        // card ends — instead of its own length stretching the row.
+        <div className="relative min-h-0 lg:flex-1">
+        <div className="max-h-96 overflow-y-auto divide-y divide-neutral-900 lg:absolute lg:inset-0 lg:max-h-none">
           {events.map((e, i) => (
             <div key={i} className="flex items-baseline justify-between gap-3 py-2.5">
               <div className="min-w-0">
@@ -1239,6 +1263,7 @@ function RecentActivity({
               </span>
             </div>
           ))}
+        </div>
         </div>
       )}
     </section>

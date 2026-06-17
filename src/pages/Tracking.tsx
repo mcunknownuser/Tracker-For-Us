@@ -1164,8 +1164,8 @@ function EmptyState({ onImport }: { onImport: () => void }) {
     <div className="flex h-80 flex-col items-center justify-center gap-4 border border-dashed border-neutral-800 px-6 text-center">
       <div className="font-serif text-2xl text-neutral-200">No tracking data yet.</div>
       <div className="max-w-md text-xs uppercase tracking-widest text-neutral-600">
-        Export a CSV from Infloww and import it here. Each upload adds a new
-        snapshot — historical metrics are preserved.
+        Export a CSV from your tracking tool and import it here. Each upload
+        adds a new snapshot — historical metrics are preserved.
       </div>
       <button
         onClick={onImport}
@@ -1290,10 +1290,10 @@ function LinkDetailModal({
     >
       {/* Cumulative totals */}
       <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <CumulativeStat label="Clicks" value={latest.clicks.toLocaleString()} />
-        <CumulativeStat label="Subs" value={latest.subs.toLocaleString()} />
-        <CumulativeStat label="Earnings" value={formatCents(latest.earnings_cents)} />
-        <CumulativeStat label="Profit" value={formatCents(latest.profit_cents)} />
+        <CumulativeStat label="Clicks" value={latest.clicks.toLocaleString()} tone="dept" />
+        <CumulativeStat label="Subs" value={latest.subs.toLocaleString()} tone="key" />
+        <CumulativeStat label="Earnings" value={formatCents(latest.earnings_cents)} tone="revenue" />
+        <CumulativeStat label="Profit" value={formatCents(latest.profit_cents)} tone="warn" />
       </div>
 
       <div className="mb-6 grid grid-cols-2 gap-x-6 gap-y-2 border border-neutral-900 bg-neutral-950 p-4 text-xs">
@@ -1373,11 +1373,28 @@ function LinkDetailModal({
   );
 }
 
-function CumulativeStat({ label, value }: { label: string; value: string }) {
+type StatTone = 'revenue' | 'cost' | 'key' | 'warn' | 'dept' | 'neutral';
+
+const TONE_STYLES: Record<StatTone, { accent: string; label: string; dot: string }> = {
+  revenue: { accent: 'before:bg-[#b8956a]', label: 'text-[#b8956a]', dot: 'bg-[#b8956a]' },
+  cost:    { accent: 'before:bg-[#b8857a]', label: 'text-[#b8857a]', dot: 'bg-[#b8857a]' },
+  key:     { accent: 'before:bg-[#c8b896]', label: 'text-[#c8b896]', dot: 'bg-[#c8b896]' },
+  warn:    { accent: 'before:bg-[#b8754d]', label: 'text-[#b8754d]', dot: 'bg-[#b8754d]' },
+  dept:    { accent: 'before:bg-[#a89890]', label: 'text-[#a89890]', dot: 'bg-[#a89890]' },
+  neutral: { accent: 'before:bg-[#7c706a]', label: 'text-[#7c706a]', dot: 'bg-[#7c706a]' },
+};
+
+function CumulativeStat({ label, value, tone = 'neutral' }: { label: string; value: string; tone?: StatTone }) {
+  const t = TONE_STYLES[tone];
   return (
-    <div className="border border-neutral-800 bg-neutral-950 p-4">
-      <div className="text-[9px] uppercase tracking-widest text-neutral-600">{label}</div>
-      <div className="mt-1.5 font-serif text-2xl font-semibold tabular-nums tracking-tight text-neutral-50">
+    <div className="relative text-left transition-all premium-card-primary p-5">
+      <div className="flex items-center gap-1.5">
+        <span aria-hidden className={'inline-block h-1.5 w-1.5 ' + t.dot} />
+        <div className={'text-[10px] font-bold uppercase tracking-editorial ' + t.label}>
+          {label}
+        </div>
+      </div>
+      <div className="mt-2 font-serif text-xl font-semibold tabular-nums tracking-tight text-neutral-50">
         {value}
       </div>
     </div>
@@ -1565,14 +1582,14 @@ function ImportModal({ onClose, onDone }: { onClose: () => void; onDone: () => v
       open
       onClose={onClose}
       eyebrow="Import"
-      title="Infloww CSV"
+      title="Import CSV"
       maxWidth="max-w-2xl"
     >
       {!fileName && (
         <div className="border border-dashed border-neutral-800 bg-neutral-950 p-10 text-center">
           <div className="font-serif text-lg text-neutral-200">Choose a CSV file</div>
           <div className="mt-2 text-[10px] uppercase tracking-widest text-neutral-600">
-            Exported from Infloww. Headers are matched case-insensitively.
+            Exported from your tracking tool. Headers are matched case-insensitively.
           </div>
           <label className="mt-5 inline-block cursor-pointer border border-neutral-700 px-5 py-2.5 text-[11px] uppercase tracking-widest text-neutral-200 transition-colors hover:border-neutral-400">
             Select file

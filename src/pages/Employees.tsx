@@ -9,7 +9,7 @@
 // =============================================================================
 
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { PageHeader } from '../components/PageHeader';
 import { Modal } from '../components/Modal';
 import { Button, Field, Label, TextLink } from '../components/FormControls';
@@ -563,6 +563,13 @@ function TeamFormModal({
 }) {
   const editing = modal.mode === 'edit' ? modal.member : null;
   const prefill = modal.mode === 'create' ? modal.prefill : undefined;
+  const navigate = useNavigate();
+  // Close the modal and jump to Settings (departments + roles live there) —
+  // used by the "+ Add new…" rows inside the dropdowns.
+  function goToSettings() {
+    onClose();
+    navigate(ROUTES.settings);
+  }
 
   const [departmentId, setDepartmentId] = useState<string>(
     editing?.department_id ?? prefill?.department_id ?? departments[0]?.id ?? '',
@@ -749,6 +756,7 @@ function TeamFormModal({
             value={departmentId}
             onChange={setDepartmentId}
             options={departments.map((d) => ({ value: d.id, label: d.name }))}
+            footer={{ label: 'Add new department', onSelect: goToSettings }}
           />
         </div>
 
@@ -756,9 +764,16 @@ function TeamFormModal({
         <div className="mb-5">
           <Label htmlFor="role">Role</Label>
           {deptRoles.length === 0 ? (
-            <div className="border border-neutral-900 bg-neutral-950 px-3.5 py-3 text-sm text-neutral-500">
-              No roles in this department yet — add one in Settings.
-            </div>
+            <button
+              type="button"
+              onClick={goToSettings}
+              className="group flex w-full items-center justify-between border border-dashed border-neutral-700 bg-neutral-950 px-3.5 py-3 text-sm text-neutral-400 transition-colors hover:border-neutral-500 hover:text-neutral-100"
+            >
+              <span>No roles in this department yet — add one</span>
+              <span className="text-[10px] uppercase tracking-widest text-neutral-600 transition-colors group-hover:text-neutral-300">
+                Settings →
+              </span>
+            </button>
           ) : (
             <Select
               id="role"
@@ -769,6 +784,7 @@ function TeamFormModal({
                 label: r.name,
                 detail: payStructureLabel(r.pay_structure),
               }))}
+              footer={{ label: 'Add new role', onSelect: goToSettings }}
             />
           )}
         </div>
