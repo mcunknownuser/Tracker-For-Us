@@ -68,7 +68,15 @@ export function SetupGuide({ agency }: { agency: Agency }) {
       ]);
       if (cancelled) return;
       setDismissed(isDismissed);
-      if (!seen) setTourOn(true);
+      if (!seen) {
+        setTourOn(true);
+        // Marked seen at START, not at the final step. Finishing was the only
+        // thing that recorded it, and the tour has no other exit — so anyone
+        // who quit the app mid-tour got the whole introduction again on every
+        // login. Seen-on-start makes it one-shot; replay stays available from
+        // the setup widget.
+        void markTourSeen();
+      }
       reload();
     })();
     return () => {
@@ -327,6 +335,7 @@ function Tour({ onFinish }: { onFinish: () => void }) {
         isLast={isLast}
         onBack={() => setI((n) => Math.max(0, n - 1))}
         onNext={() => (isLast ? onFinish() : setI((n) => n + 1))}
+        onSkip={onFinish}
       />
     </div>
   );
@@ -340,6 +349,7 @@ function TourCard({
   isLast,
   onBack,
   onNext,
+  onSkip,
 }: {
   step: TourStep;
   rect: DOMRect | null;
@@ -348,6 +358,7 @@ function TourCard({
   isLast: boolean;
   onBack: () => void;
   onNext: () => void;
+  onSkip: () => void;
 }) {
   // Position beside the target when we have one, otherwise dead center.
   const CARD_W = 340;
@@ -384,7 +395,18 @@ function TourCard({
       </h2>
       <p className="mt-2 text-sm leading-relaxed text-neutral-400">{step.body}</p>
 
-      <div className="mt-6 flex items-center justify-end">
+      <div className="mt-6 flex items-center justify-between">
+        {!isLast ? (
+          <button
+            type="button"
+            onClick={onSkip}
+            className="text-[10px] uppercase tracking-widest text-neutral-600 transition-colors hover:text-neutral-300"
+          >
+            Skip tour
+          </button>
+        ) : (
+          <span />
+        )}
         <div className="flex items-center gap-2">
           {index > 0 && (
             <button

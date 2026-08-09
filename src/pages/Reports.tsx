@@ -118,18 +118,18 @@ export function Reports() {
     }
 
     if (isTauri) {
-      const url = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${title.replace(/[/\\:]/g, '-')}.html`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-      toast.info(
-        'Report saved as an HTML file in your Downloads. Open it — it will open in your ' +
-        'browser — then print and choose "Save as PDF".',
-      );
+      // Anchor-download is silently ignored by the webview, so the export
+      // goes through a native command: Rust writes the file to Downloads and
+      // opens it in the default browser, which CAN print.
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        const path = await invoke<string>('save_report_html', { title, html });
+        toast.success(
+          `Report opened in your browser — use Print → "Save as PDF" there. (Saved to ${path})`,
+        );
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : String(err));
+      }
       return;
     }
 
