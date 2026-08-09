@@ -81,32 +81,61 @@ export function Reports() {
     }
   }
 
-  // Print a window containing ONLY the report document and its stylesheet.
-  // Printing the app page itself drags the sidebar into the PDF and clips the
-  // document to the app's scroll container — a dedicated window has neither
-  // problem, whatever layout the app is wearing around the report.
+  // Export = a standalone document (report + stylesheet, nothing else), where
+  // the app page would drag the sidebar into the PDF and clip the document to
+  // its scroll container. Three environments, three paths:
+  //   Browser, popups allowed → dedicated window + print dialog.
+  //   Browser, popup blocked  → print in place (report.css hides app chrome).
+  //   Desktop app (Tauri)     → the webview cannot print at all, so download
+  //                             the document as an .html file; the default
+  //                             browser prints it to PDF from there.
   async function exportPdf() {
     const doc = document.querySelector('.report-doc');
     if (!doc) return;
-    const { default: css } = await import('../styles/report.css?raw');
-    const win = window.open('', '_blank');
-    if (!win) {
-      // Popup blocked — fall back to printing in place rather than doing nothing.
-      window.print();
-      return;
-    }
     const title = result?.report.computed.spec.title ?? 'Report';
-    win.document.write(
+    const isTauri = '__TAURI_INTERNALS__' in window;
+
+    // Open the window BEFORE any await. Safari honours window.open only while
+    // the click's user activation is live, and an await ends it — opened
+    // late, the popup is silently blocked and Safari prints the whole app.
+    const win = isTauri ? null : window.open('', '_blank');
+
+    const { default: css } = await import('../styles/report.css?raw');
+    const html =
       `<!doctype html><html><head><meta charset="utf-8"><title>${title}</title>` +
       `<style>html,body{margin:0;padding:0}</style><style>${css}</style></head>` +
-      `<body>${doc.outerHTML}</body></html>`,
-    );
-    win.document.close();
-    // One beat for fonts and layout before the dialog opens.
-    setTimeout(() => {
-      win.focus();
-      win.print();
-    }, 300);
+      `<body>${doc.outerHTML}</body></html>`;
+
+    if (win) {
+      win.document.write(html);
+      win.document.close();
+      // One beat for fonts and layout before the dialog opens.
+      setTimeout(() => {
+        win.focus();
+        win.print();
+      }, 300);
+      return;
+    }
+
+    if (isTauri) {
+      const url = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${title.replace(/[/\\:]/g, '-')}.html`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      toast.info(
+        'Report saved as an HTML file in your Downloads. Open it — it will open in your ' +
+        'browser — then print and choose "Save as PDF".',
+      );
+      return;
+    }
+
+    // Popup blocked: print in place. report.css's print rules hide the app
+    // shell and un-clip the document when a report is on the page.
+    window.print();
   }
 
   async function openRun(id: string) {

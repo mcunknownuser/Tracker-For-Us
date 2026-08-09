@@ -92,6 +92,26 @@ export async function runReport(opts: RunOptions): Promise<RunResult> {
   notify('profiling');
   const profile = profileUpload(merged);
 
+  // Re-key every table to a STABLE id derived from its column signature, not
+  // its file name. Infloww names every download with a fresh UUID, so
+  // file-derived ids ("merged:6fec17e0-…#0") break the entire spec-reuse
+  // mechanism: last week's saved spec matches this week's upload by signature
+  // and then fails on every section because no table has last week's id.
+  // Signature-derived ids ("t-147060da") are identical for identical column
+  // layouts, whatever the files are called — which is the reuse contract.
+  {
+    const idMap = new Map<string, string>();
+    const taken = new Set<string>();
+    for (const t of profile.tables) {
+      let stable = `t-${t.signature}`;
+      for (let n = 2; taken.has(stable); n++) stable = `t-${t.signature}-${n}`;
+      taken.add(stable);
+      idMap.set(t.id, stable);
+      t.id = stable;
+    }
+    for (const t of merged) t.id = idMap.get(t.id) ?? t.id;
+  }
+
   // Reuse before planning. A pinned spec is never re-planned, even when the
   // caller asks — pinning exists precisely to freeze a report's shape.
   notify('planning');

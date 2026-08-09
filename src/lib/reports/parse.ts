@@ -25,6 +25,15 @@ import * as XLSX from 'xlsx';
 import { parseCsv, isSectionHeader, extractModelName } from '../tracking';
 import type { RawTable } from './types';
 
+// The formats this pipeline can actually read. Everything else must be
+// rejected BEFORE parsing: the file picker filters to these, but drag-and-drop
+// bypasses the picker, and a PDF fed through the CSV path becomes rows of
+// binary garbage whose profile is large enough to kill the AI request in
+// flight. That is a real failure mode observed in production, not paranoia.
+export function isSupportedUpload(name: string): boolean {
+  return /\.(xlsx?|csv)$/i.test(name);
+}
+
 export async function parseUpload(
   files: { name: string; bytes: ArrayBuffer }[],
 ): Promise<RawTable[]> {
@@ -35,6 +44,13 @@ export async function parseUpload(
   const usedBases = new Set<string>();
 
   for (const file of files) {
+    if (!isSupportedUpload(file.name)) {
+      throw new Error(
+        `"${file.name}" is not a spreadsheet. This report reads Excel (.xlsx) and ` +
+        `CSV exports — remove this file, or re-export the data from Infloww as Excel.`,
+      );
+    }
+
     const raw = basename(file.name);
     let base = raw;
     for (let n = 2; usedBases.has(base); n++) base = `${raw} (${n})`;

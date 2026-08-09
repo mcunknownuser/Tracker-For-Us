@@ -166,6 +166,13 @@ export function profileUpload(tables: RawTable[]): UploadProfile {
   const profiled = tables.map(profileTable);
   // Sorted, so dropping the same five files in a different order is still the
   // same upload as far as spec reuse is concerned.
-  const signature = hash(profiled.map((t) => t.signature).sort().join('\u0001'));
+  //
+  // The "v2-" prefix is a version salt. v1 specs were saved with tableIds
+  // derived from FILE NAMES — and Infloww names every download with a fresh
+  // UUID, so a v1 spec matched next week's upload by signature and then
+  // failed on every section ("table not in this upload"). Salting the
+  // signature orphans those broken specs; each shape re-plans once against
+  // the stable ids assigned in run.ts and reuse works from then on.
+  const signature = 'v2-' + hash(profiled.map((t) => t.signature).sort().join('\u0001'));
   return { tables: profiled, signature };
 }
