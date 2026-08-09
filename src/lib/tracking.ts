@@ -374,7 +374,7 @@ export type ParseResult = {
 //   <data rows>
 //
 // We also support flat CSVs that have a single header with a "User" column.
-function isSectionHeader(row: string[]): boolean {
+export function isSectionHeader(row: string[]): boolean {
   const first = (row[0] ?? '').trim();
   if (!first) return false;
   // Other cells must be empty for it to be a section header line.
@@ -414,7 +414,7 @@ export function autoMatchModel<T extends { id: string; name: string }>(
   return partial?.c ?? null;
 }
 
-function extractModelName(raw: string): string {
+export function extractModelName(raw: string): string {
   // Strip everything from the last '(' onward (Infloww ID + ": Table N").
   // Some rows are truncated and missing the closing paren — that's fine.
   const lastParen = raw.lastIndexOf('(');

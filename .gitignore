@@ -11,3 +11,7 @@ dist
 src-tauri/target
 src-tauri/gen
 src-tauri/Cargo.lock
+
+# Supabase CLI local state — written by `supabase link`, machine-specific.
+# Migrations and functions ARE committed; only the CLI's scratch dir is not.
+supabase/.temp

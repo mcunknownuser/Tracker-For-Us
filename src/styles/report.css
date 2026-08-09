@@ -1,0 +1,623 @@
+/* =============================================================================
+   report.css
+
+   Typography, surfaces and print rules for the generated report document.
+
+   This is a *document*, not app UI: it replaces a consultant-authored PDF and
+   has to keep the same face whatever theme the app is wearing. So every colour
+   and font here is written out explicitly under `.report-doc` rather than
+   borrowing Tailwind's neutral palette — themes.css rewrites those utilities
+   per theme, which would repaint the report and change what gets printed.
+   Tailwind is still used inside the components for pure layout (flex/grid/gap).
+
+   Tokens live on `.report-doc` (not `:root`) so nothing leaks into the app.
+
+   The print block is the PDF path: HTML -> browser print -> Save as PDF.
+   ============================================================================= */
+
+.report-doc {
+  /* Surfaces */
+  --rpt-page: #f4f1ea;      /* warm off-white sheet */
+  --rpt-card: #ffffff;
+  --rpt-rule: #e2dccf;      /* hairline */
+  --rpt-rule-soft: #efeade;
+  --rpt-track: #ece6d9;     /* bar background */
+
+  /* Ink */
+  --rpt-ink: #1c1a17;
+  --rpt-ink-soft: #4a453d;
+  --rpt-muted: #6e6459;     /* labels, captions */
+  --rpt-faint: #9a9086;     /* em-dashes for missing values */
+
+  /* Accent + status */
+  --rpt-accent: #1f5c4b;    /* deep teal */
+  --rpt-pass: #1f6b4a;
+  --rpt-pass-bg: #e7f1eb;
+  --rpt-near: #8a5a12;
+  --rpt-near-bg: #faf0da;
+  --rpt-fail: #9b2c21;
+  --rpt-fail-bg: #f8e8e4;
+
+  /* Faces. No system-ui / -apple-system anywhere: the report must not inherit
+     the host OS look, and system stacks resolve differently in print. */
+  --rpt-serif: Georgia, 'Iowan Old Style', 'Palatino Linotype', Palatino, 'Book Antiqua', serif;
+  --rpt-sans: 'Inter', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+
+  background: var(--rpt-page);
+  color: var(--rpt-ink);
+  font-family: var(--rpt-sans);
+  font-size: 13px;
+  line-height: 1.55;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+  padding: 40px 28px 56px;
+}
+
+.report-doc *,
+.report-doc *::before,
+.report-doc *::after {
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.rpt-page {
+  max-width: 880px;
+  margin: 0 auto;
+}
+
+/* Full-bleed warm background for print. A fixed-position box is repeated on
+   every printed page by the engine, so the sheet stays warm edge to edge while
+   @page margins still hold the content in. Hidden on screen — `.report-doc`
+   paints its own background there. */
+.rpt-bleed {
+  display: none;
+}
+
+/* ---- Masthead ------------------------------------------------------------ */
+
+.rpt-eyebrow {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--rpt-muted);
+}
+
+.rpt-title {
+  font-family: var(--rpt-serif);
+  font-size: 40px;
+  line-height: 1.1;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--rpt-ink);
+}
+
+.rpt-subtitle {
+  font-family: var(--rpt-serif);
+  font-size: 17px;
+  font-style: italic;
+  color: var(--rpt-ink-soft);
+}
+
+.rpt-masthead-rule {
+  border: 0;
+  border-top: 2px solid var(--rpt-accent);
+}
+
+/* ---- Section shell ------------------------------------------------------- */
+
+.rpt-card {
+  background: var(--rpt-card);
+  border: 1px solid var(--rpt-rule);
+  padding: 26px 28px;
+}
+
+.rpt-h2 {
+  font-family: var(--rpt-serif);
+  font-size: 21px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  color: var(--rpt-ink);
+}
+
+.rpt-h2-rule {
+  border: 0;
+  border-top: 1px solid var(--rpt-rule);
+}
+
+.rpt-prose {
+  color: var(--rpt-ink-soft);
+  max-width: 68ch;
+}
+
+.rpt-prose p + p {
+  margin-top: 0.7em;
+}
+
+.rpt-lede {
+  font-family: var(--rpt-serif);
+  font-size: 15.5px;
+  line-height: 1.65;
+  color: var(--rpt-ink-soft);
+  max-width: 66ch;
+}
+
+/* ---- Labels + figures ---------------------------------------------------- */
+
+.rpt-label {
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--rpt-muted);
+}
+
+.rpt-num {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* A value that could not be computed. Never a zero — an em-dash in grey, with
+   the reason available as a tooltip and a numbered footnote. */
+.rpt-missing {
+  color: var(--rpt-faint);
+}
+
+.rpt-sup {
+  font-size: 0.68em;
+  /* Offset by hand rather than with vertical-align: super, which lifts the
+     marker clear off an em-dash and looks detached from it. */
+  position: relative;
+  top: -0.4em;
+  line-height: 0;
+  color: var(--rpt-muted);
+  margin-left: 1px;
+}
+
+.rpt-footnotes {
+  border-top: 1px solid var(--rpt-rule-soft);
+  color: var(--rpt-muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+/* ---- statCards ----------------------------------------------------------- */
+
+.rpt-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(158px, 1fr));
+  gap: 1px;
+  background: var(--rpt-rule);
+  border: 1px solid var(--rpt-rule);
+}
+
+.rpt-stat {
+  background: var(--rpt-card);
+  padding: 18px 18px 16px;
+}
+
+.rpt-stat-value {
+  font-family: var(--rpt-serif);
+  font-size: 29px;
+  line-height: 1.15;
+  color: var(--rpt-ink);
+}
+
+.rpt-stat-value.rpt-missing {
+  color: var(--rpt-faint);
+}
+
+.rpt-stat-desc {
+  font-size: 11px;
+  color: var(--rpt-muted);
+}
+
+/* ---- Tables -------------------------------------------------------------- */
+
+/* The planner decides how many columns a section carries, so a wide scorecard
+   is a legitimate plan. On screen it scrolls inside its card instead of
+   bleeding past the card edge; print neutralises this (see the print block). */
+.rpt-scroll {
+  overflow-x: auto;
+}
+
+.rpt-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+
+.rpt-table th {
+  text-align: left;
+  vertical-align: bottom;
+  padding: 0 10px 8px;
+  border-bottom: 1px solid var(--rpt-ink);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--rpt-muted);
+}
+
+.rpt-table th:first-child,
+.rpt-table td:first-child {
+  padding-left: 0;
+}
+
+.rpt-table th:last-child,
+.rpt-table td:last-child {
+  padding-right: 0;
+}
+
+.rpt-table td {
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--rpt-rule-soft);
+  color: var(--rpt-ink);
+}
+
+.rpt-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+/* Two classes, so this beats `.rpt-table th`'s left alignment. */
+.rpt-table th.rpt-th-num {
+  text-align: right;
+}
+
+.rpt-target {
+  display: block;
+  margin-top: 3px;
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: none;
+  color: var(--rpt-accent);
+}
+
+.rpt-target--proposed {
+  font-style: italic;
+  color: var(--rpt-muted);
+}
+
+.rpt-row-label {
+  font-weight: 600;
+  color: var(--rpt-ink);
+}
+
+/* Sort control on `table` sections. Screen only. */
+.rpt-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+.rpt-sort:hover {
+  color: var(--rpt-accent);
+}
+
+.rpt-sort-caret {
+  font-size: 8px;
+  opacity: 0.55;
+}
+
+.rpt-sort-caret--on {
+  opacity: 1;
+  color: var(--rpt-accent);
+}
+
+/* ---- Pass / fail badges -------------------------------------------------- */
+
+.rpt-badge {
+  display: inline-block;
+  min-width: 62px;
+  padding: 3px 8px;
+  border: 1px solid transparent;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.rpt-badge--pass {
+  color: var(--rpt-pass);
+  background: var(--rpt-pass-bg);
+  border-color: #cde0d5;
+}
+
+.rpt-badge--near {
+  color: var(--rpt-near);
+  background: var(--rpt-near-bg);
+  border-color: #ecdcb6;
+}
+
+.rpt-badge--fail {
+  color: var(--rpt-fail);
+  background: var(--rpt-fail-bg);
+  border-color: #eccfc8;
+}
+
+.rpt-legend {
+  font-size: 10px;
+  color: var(--rpt-muted);
+}
+
+.rpt-legend-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 5px;
+  vertical-align: middle;
+  border: 1px solid transparent;
+}
+
+/* ---- Bars (trend + ranking). No chart library: a div is enough and it is
+       the only thing that prints reliably. ------------------------------------ */
+
+.rpt-bar {
+  height: 4px;
+  margin-top: 5px;
+  background: var(--rpt-track);
+}
+
+.rpt-bar-fill {
+  height: 100%;
+  background: var(--rpt-accent);
+}
+
+.rpt-rank {
+  font-family: var(--rpt-serif);
+  font-size: 15px;
+  color: var(--rpt-accent);
+  width: 1.6em;
+}
+
+/* ---- Callouts, errors, recommendations ----------------------------------- */
+
+.rpt-callout {
+  border: 1px solid var(--rpt-rule);
+  border-left-width: 3px;
+  padding: 18px 22px;
+  background: var(--rpt-card);
+}
+
+.rpt-callout--info {
+  border-left-color: var(--rpt-accent);
+}
+
+.rpt-callout--warn {
+  border-left-color: var(--rpt-near);
+  background: #fdfaf2;
+}
+
+.rpt-callout-title {
+  font-family: var(--rpt-serif);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.rpt-error {
+  border: 1px solid #eccfc8;
+  border-left: 3px solid var(--rpt-fail);
+  background: var(--rpt-fail-bg);
+  padding: 16px 20px;
+  color: #6d2018;
+}
+
+.rpt-rec-num {
+  font-family: var(--rpt-serif);
+  font-size: 19px;
+  color: var(--rpt-accent);
+  line-height: 1;
+}
+
+.rpt-rec-title {
+  font-weight: 600;
+  color: var(--rpt-ink);
+}
+
+.rpt-divider {
+  border: 0;
+  border-top: 1px solid var(--rpt-rule);
+}
+
+.rpt-footer {
+  border-top: 1px solid var(--rpt-rule);
+  font-size: 11px;
+  color: var(--rpt-muted);
+}
+
+.rpt-footer-files {
+  font-variant-numeric: tabular-nums;
+  color: var(--rpt-ink-soft);
+}
+
+/* =============================================================================
+   PRINT — the export path, not an afterthought.
+   ============================================================================= */
+
+@media print {
+  /* Default sheet. `.report-doc--letter` opts into US Letter. */
+  @page {
+    size: A4;
+    margin: 14mm 13mm;
+  }
+
+  @page letter {
+    size: Letter;
+    margin: 0.55in 0.5in;
+  }
+
+  .report-doc--letter {
+    page: letter;
+  }
+
+  /* Anything the host page wraps around the document (toolbars, buttons). */
+  .rpt-no-print {
+    display: none !important;
+  }
+
+  /* Fallback for printing IN PLACE (packaged Tauri app, blocked popups —
+     anywhere the dedicated print window isn't available). When the page
+     being printed contains a report, the print IS the report: app chrome
+     goes away and the scroll containers that would clip the document to one
+     viewport-height open up. Scoped with :has so printing any other page of
+     the app is untouched. */
+  body:has(.report-doc) aside,
+  body:has(.report-doc) header {
+    display: none !important;
+  }
+
+  body:has(.report-doc) #root,
+  body:has(.report-doc) #root > div,
+  body:has(.report-doc) main {
+    display: block !important;
+    height: auto !important;
+    overflow: visible !important;
+    padding: 0 !important;
+  }
+
+  /* Fixed boxes repeat on every printed page, which is how the warm sheet
+     colour reaches the paper edge instead of stopping at the @page margin. */
+  .rpt-bleed {
+    display: block;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: var(--rpt-page);
+    z-index: -1;
+  }
+
+  .report-doc {
+    padding: 0;
+    background: var(--rpt-page);
+    font-size: 9.5pt;
+    line-height: 1.45;
+  }
+
+  .rpt-page {
+    max-width: none;
+  }
+
+  .rpt-title {
+    font-size: 26pt;
+  }
+
+  .rpt-subtitle {
+    font-size: 11.5pt;
+  }
+
+  .rpt-h2 {
+    font-size: 14pt;
+  }
+
+  .rpt-lede {
+    font-size: 10.5pt;
+  }
+
+  .rpt-stat-value {
+    font-size: 19pt;
+  }
+
+  /* Paper cannot scroll: the wrapper opens up and the table must fit. */
+  .rpt-scroll {
+    overflow: visible;
+  }
+
+  .rpt-table {
+    font-size: 9pt;
+  }
+
+  .rpt-table th {
+    font-size: 7pt;
+  }
+
+  /* Nine columns or more: drop to dense type so a planner-sized scorecard
+     fits an A4 sheet instead of running off its right edge. */
+  .rpt-scroll .rpt-table:has(th:nth-child(9)) {
+    font-size: 7pt;
+  }
+
+  .rpt-scroll .rpt-table:has(th:nth-child(9)) th {
+    font-size: 5.5pt;
+    letter-spacing: 0.08em;
+    padding: 0 5px 5px;
+  }
+
+  .rpt-scroll .rpt-table:has(th:nth-child(9)) td {
+    padding: 5px;
+  }
+
+  .rpt-scroll .rpt-table:has(th:nth-child(9)) .rpt-badge {
+    min-width: 0;
+    font-size: 6.5pt;
+    padding: 1px 3px;
+  }
+
+  .rpt-badge {
+    font-size: 8.5pt;
+    padding: 2px 6px;
+  }
+
+  .rpt-card {
+    padding: 16px 18px;
+  }
+
+  /* Keep whole objects together where they plausibly fit on one page… */
+  .rpt-avoid-break {
+    break-inside: avoid;
+  }
+
+  /* …but a long scorecard/table must be allowed to flow, or it overflows the
+     sheet. It splits between rows, never through one, and repeats its header. */
+  .rpt-flow {
+    break-inside: auto;
+  }
+
+  .rpt-table thead {
+    display: table-header-group;
+  }
+
+  .rpt-table tr,
+  .rpt-stat,
+  .rpt-callout,
+  .rpt-error,
+  .rpt-rec {
+    break-inside: avoid;
+  }
+
+  /* A heading never sits alone at the foot of a page. */
+  .rpt-section-head,
+  .rpt-h2 {
+    break-after: avoid;
+  }
+
+  .rpt-prose p,
+  .rpt-lede {
+    orphans: 3;
+    widows: 3;
+  }
+
+  .rpt-sort-caret {
+    display: none;
+  }
+
+  .rpt-sort {
+    cursor: default;
+  }
+
+  a {
+    text-decoration: none;
+    color: inherit;
+  }
+}

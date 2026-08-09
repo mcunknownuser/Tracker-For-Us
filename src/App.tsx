@@ -21,6 +21,7 @@ import { ResetPassword } from './pages/ResetPassword';
 import { CreateAgency } from './pages/CreateAgency';
 import { Dashboard } from './pages/Dashboard';
 import { Tracking } from './pages/Tracking';
+import { Reports } from './pages/Reports';
 import { Expenses } from './pages/Expenses';
 import { Employees } from './pages/Employees';
 import { Settings } from './pages/Settings';
@@ -204,6 +205,7 @@ function SignedInApp({ userId }: { userId: string }) {
           <Route path={ROUTES.ofm}       element={<Navigate to={ROUTES.dashboard} replace />} />
           <Route path={ROUTES.reddit}    element={<Navigate to={ROUTES.dashboard} replace />} />
           <Route path={ROUTES.tracking}  element={<Tracking />} />
+          <Route path={ROUTES.reports}   element={<Reports />} />
           <Route path={ROUTES.expenses}  element={<Expenses />} />
           <Route path={ROUTES.employees} element={<Employees />} />
           <Route path={ROUTES.settings}         element={<Settings />} />

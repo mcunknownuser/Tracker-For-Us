@@ -10,6 +10,7 @@ export const ROUTES = {
   dashboard:         '/',
   department:        '/department',   // base — actual route is /department/:id
   tracking:          '/tracking',
+  reports:           '/reports',
   expenses:          '/expenses',
   employees:         '/employees',
   settings:          '/settings',
@@ -29,6 +30,7 @@ export type RoutePath = (typeof ROUTES)[keyof typeof ROUTES];
 // Settings is rendered separately at the bottom of the sidebar (Sidebar.tsx).
 export const UNIVERSAL_NAV: { label: string; path: RoutePath }[] = [
   { label: 'Tracking',  path: ROUTES.tracking  },
+  { label: 'Reports',   path: ROUTES.reports   },
   { label: 'Expenses',  path: ROUTES.expenses  },
   { label: 'Employees', path: ROUTES.employees },
 ];
